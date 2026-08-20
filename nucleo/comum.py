@@ -889,7 +889,8 @@ def salvar_oferta(con: sqlite3.Connection, o: Oferta) -> bool:
         (o.mlb_id, o.nome, o.url, o.imagem, o.preco_original, o.preco_promocional,
          o.desconto_pct, o.badge, o.condicao, o.marca, familia_da_marca(o.marca),
          o.vendedor, o.loja,
-         int(o.loja_oficial), o.avaliacao, o.vendidos, normalizar(o.nome), ts, ts),
+         int(o.loja_oficial), o.avaliacao, PERFIL_ATIVO,
+         o.vendidos, normalizar(o.nome), ts, ts),
     )
     return not ja_existe
 
