@@ -620,7 +620,13 @@ COLUNAS_NOVAS = {
 }
 
 
-def abrir_banco() -> sqlite3.Connection:
+def abrir_banco():
+    """O banco da operação. STORAGE=postgres muda o motor, não o contrato:
+    quem chama continua recebendo execute/commit/close e linhas por nome."""
+    if os.environ.get("STORAGE", "sqlite").lower() in ("postgres", "pg"):
+        from nucleo import storage
+        return storage.conectar_pg()
+
     con = sqlite3.connect(BANCO, timeout=30)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")

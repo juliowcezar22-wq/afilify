@@ -1,0 +1,3 @@
+# Necessário SOMENTE com STORAGE=postgres.
+# O modo padrão (sqlite) roda 100% em stdlib, sem pip install.
+psycopg[binary]>=3.1
