@@ -58,7 +58,7 @@ class Config(unittest.TestCase):
             self.assertEqual(sortear_headline(self.con, linha_fake()), "SÓ ESTA")
 
     def test_seed_grava_uma_vez_e_respeita_edicao(self):
-        self.assertEqual(garantir_config(self.con), 2)   # headlines + mensagem
+        self.assertEqual(garantir_config(self.con), 3)   # headlines + mensagem + ritmo
         self.assertEqual(garantir_config(self.con), 0)   # idempotente
         gravar_config(self.con, "headlines", {"geral": ["EDITADA"]})
         self.assertEqual(garantir_config(self.con), 0)   # seed NUNCA sobrescreve
@@ -71,6 +71,39 @@ class Config(unittest.TestCase):
         self.con.commit()
         m = montar_mensagem(linha_fake(), self.con)      # cai no fallback
         self.assertIn("R$ 239,00", m)
+
+
+class Ritmo(unittest.TestCase):
+    def setUp(self):
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
+        self.con = abrir_banco()
+        self.con.execute("DELETE FROM config"); self.con.commit()
+
+    def tearDown(self):
+        self.con.close()
+
+    def test_padrao_vem_do_perfil(self):
+        cfg = comum.ritmo_cfg(self.con)
+        self.assertEqual(tuple(cfg["envios_por_dia"]), tuple(comum.ENVIOS_POR_DIA))
+        self.assertEqual(cfg["busca_horas"], list(comum.BUSCA_HORAS))
+
+    def test_override_do_painel_vence(self):
+        gravar_config(self.con, "ritmo", {"envios_por_dia": [10, 16],
+                                          "busca_horas": [9, 18]})
+        cfg = comum.ritmo_cfg(self.con)
+        self.assertEqual(cfg["envios_por_dia"], [10, 16])
+        self.assertEqual(cfg["busca_horas"], [9, 18])
+        # chaves não editadas continuam do perfil
+        self.assertEqual(cfg["validade_horas"], comum.VALIDADE_HORAS)
+
+    def test_plano_do_dia_respeita_override(self):
+        from mercadolivre.agente import plano_do_dia
+        gravar_config(self.con, "ritmo", {"envios_por_dia": [7, 7],
+                                          "busca_horas": [11]})
+        p = plano_do_dia(self.con, comum.agora())
+        self.assertEqual(p["cota"], 7)
+        self.assertEqual(p["coletas"], [11])
 
 
 if __name__ == "__main__":

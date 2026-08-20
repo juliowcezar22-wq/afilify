@@ -96,8 +96,9 @@ def fila_de_envio(con: sqlite3.Connection, limite: int) -> list[sqlite3.Row]:
     # tentativa que falhou fica de molho até a hora marcada
     condicoes.append("(proxima_tentativa IS NULL OR proxima_tentativa <= ?)")
     params: list = [PERFIL_ATIVO, agora().isoformat(timespec="seconds")]
-    if VALIDADE_HORAS:
-        corte = (agora() - timedelta(hours=VALIDADE_HORAS)).isoformat(timespec="seconds")
+    validade = ritmo_cfg(con).get("validade_horas", VALIDADE_HORAS)
+    if validade:
+        corte = (agora() - timedelta(hours=validade)).isoformat(timespec="seconds")
         condicoes.append("criado_em >= ?")
         params.append(corte)
 
@@ -115,7 +116,8 @@ def priorizar(con: sqlite3.Connection, linhas: list) -> list:
     da cota, ele fura na frente; se passou, a vez é do nacional. Ao longo do
     dia converge para PROPORCAO_IMPORTADOS sem deixar o grupo só com um tipo.
     """
-    if not PROPORCAO_IMPORTADOS or not linhas:
+    alvo = ritmo_cfg(con).get("proporcao_preferidas", PROPORCAO_IMPORTADOS)
+    if not alvo or not linhas:
         return list(linhas)
 
     hoje = agora().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
@@ -131,7 +133,7 @@ def priorizar(con: sqlite3.Connection, linhas: list) -> list:
     importados = sum(contagem.get(f, 0) for f in FAMILIAS_IMPORTADAS)
     proporcao = (importados / enviados) if enviados else 0.0
 
-    quer_importado = proporcao < PROPORCAO_IMPORTADOS
+    quer_importado = proporcao < alvo
     def peso(r):
         # o clone é a razão de existir do monitor: o rival achou, sai na frente
         rival = 0 if r["origem"] == "clone" else 1
@@ -257,7 +259,7 @@ def _sinal(_num, _frame):
 
 
 def hora_de_buscar(con: sqlite3.Connection, momento: datetime) -> bool:
-    if momento.hour not in BUSCA_HORAS:
+    if momento.hour not in ritmo_cfg(con)["busca_horas"]:
         return False
     ultima = ler_estado(con, "ultima_busca")
     if not ultima:
@@ -294,11 +296,13 @@ def plano_do_dia(con: sqlite3.Connection, momento: datetime) -> dict:
         except (json.JSONDecodeError, ValueError):
             pass
 
+    cfg = ritmo_cfg(con)
     plano = {
         "data": hoje,
-        "cota": random.randint(*ENVIOS_POR_DIA),
-        "inicio": random.uniform(*ENVIO_INICIO_JANELA),
-        "fim": random.uniform(*ENVIO_FIM_JANELA),
+        "cota": random.randint(*cfg["envios_por_dia"]),
+        "inicio": random.uniform(*cfg["inicio_janela"]),
+        "fim": random.uniform(*cfg["fim_janela"]),
+        "coletas": list(cfg["busca_horas"]),   # congela as coletas do dia
     }
     gravar_estado(con, "plano_do_dia", json.dumps(plano))
     info(
@@ -395,7 +399,7 @@ def fim_do_ciclo(momento: datetime, plano: dict) -> datetime:
     """
     marcos = [
         momento.replace(hour=h, minute=0, second=0, microsecond=0)
-        for h in sorted(BUSCA_HORAS)
+        for h in sorted(plano.get("coletas", BUSCA_HORAS))
     ]
     marcos.append(hora_do_dia(momento, plano["fim"]))
     futuros = [m for m in marcos if m > momento]

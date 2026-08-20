@@ -12,7 +12,7 @@ const MENU: Array<[string, string, boolean]> = [
   ["Conexões", "/conexoes", true],
   ["Analytics", "/analytics", false],
   ["Logs", "/logs", true],
-  ["Configurações", "/config", false],
+  ["Configurações", "/config", true],
 ];
 
 export default function LayoutApp({ children }: { children: React.ReactNode }) {

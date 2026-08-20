@@ -30,6 +30,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ erro: `pool "${pool}" inválido` }, { status: 400 });
   }
 
+  if (chave === "ritmo") {
+    const v = valor ?? {};
+    const par = (x: unknown): x is number[] =>
+      Array.isArray(x) && x.length === 2 && x.every((n) => typeof n === "number");
+    if (!par(v.envios_por_dia) || v.envios_por_dia[0] < 1 || v.envios_por_dia[0] > v.envios_por_dia[1])
+      return NextResponse.json({ erro: "envios/dia: mínimo ≥1 e ≤ máximo" }, { status: 400 });
+    if (!par(v.inicio_janela) || !par(v.fim_janela) ||
+        v.inicio_janela[1] >= v.fim_janela[0])
+      return NextResponse.json({ erro: "a janela precisa abrir antes de fechar" }, { status: 400 });
+    if (!Array.isArray(v.busca_horas) || v.busca_horas.length === 0 ||
+        v.busca_horas.some((h: unknown) => typeof h !== "number" || h < 0 || h > 23))
+      return NextResponse.json({ erro: "coletas: horas inteiras entre 0 e 23" }, { status: 400 });
+    if (typeof v.validade_horas !== "number" || v.validade_horas < 1)
+      return NextResponse.json({ erro: "validade em horas ≥ 1" }, { status: 400 });
+    if (typeof v.proporcao_preferidas !== "number" || v.proporcao_preferidas < 0 || v.proporcao_preferidas > 1)
+      return NextResponse.json({ erro: "proporção entre 0 e 1" }, { status: 400 });
+  }
+
   await executar(
     "INSERT INTO config (perfil, chave, valor, atualizado_em) VALUES (?, ?, ?, ?) " +
     "ON CONFLICT (perfil, chave) DO UPDATE SET valor = excluded.valor, atualizado_em = excluded.atualizado_em",

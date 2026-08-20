@@ -1093,6 +1093,20 @@ def gravar_config(con, chave: str, valor) -> None:
     con.commit()
 
 
+def ritmo_cfg(con) -> dict:
+    """Ritmo vigente: config do painel por cima dos valores do perfil."""
+    padrao = {
+        "envios_por_dia": list(ENVIOS_POR_DIA),
+        "inicio_janela": list(ENVIO_INICIO_JANELA),
+        "fim_janela": list(ENVIO_FIM_JANELA),
+        "busca_horas": list(BUSCA_HORAS),
+        "validade_horas": VALIDADE_HORAS,
+        "proporcao_preferidas": PROPORCAO_IMPORTADOS,
+    }
+    cfg = config_json(con, "ritmo", {})
+    return {**padrao, **{k: v for k, v in cfg.items() if v is not None}}
+
+
 def garantir_config(con) -> int:
     """Semeia chaves ausentes com os valores vigentes (nicho/constantes)."""
     n_semeadas = 0
@@ -1102,6 +1116,14 @@ def garantir_config(con) -> int:
             "base": MENSAGEM_BASE,
             "linha_loja_oficial": LINHA_LOJA_OFICIAL,
             "rodape": RODAPE_MENSAGEM,
+        },
+        "ritmo": {
+            "envios_por_dia": list(ENVIOS_POR_DIA),
+            "inicio_janela": list(ENVIO_INICIO_JANELA),
+            "fim_janela": list(ENVIO_FIM_JANELA),
+            "busca_horas": list(BUSCA_HORAS),
+            "validade_horas": VALIDADE_HORAS,
+            "proporcao_preferidas": PROPORCAO_IMPORTADOS,
         },
     }
     for chave, valor in padroes.items():
