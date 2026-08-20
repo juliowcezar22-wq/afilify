@@ -5,13 +5,13 @@ import Link from "next/link";
 const MENU: Array<[string, string, boolean]> = [
   ["Dashboard", "/", true],
   ["Ofertas", "/ofertas", true],
-  ["Fila de publicação", "/fila", false],
+  ["Fila de publicação", "/fila", true],
   ["Grupos & canais", "/canais", false],
   ["Copiador", "/copiador", false],
   ["Templates", "/templates", false],
   ["Conexões", "/conexoes", false],
   ["Analytics", "/analytics", false],
-  ["Logs", "/logs", false],
+  ["Logs", "/logs", true],
   ["Configurações", "/config", false],
 ];
 
