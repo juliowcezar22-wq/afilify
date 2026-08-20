@@ -432,14 +432,23 @@ nicho.usar(PERFIL.nicho)
 UAZAPI_GRUPO = (PERFIL.grupo_whatsapp
                 or os.environ.get("UAZAPI_GRUPO", "").strip())
 
-# ENVIOS_POR_DIA: definido pelo perfil, acima
-# ENVIO_INICIO_JANELA: definido pelo perfil, acima
-# ENVIO_FIM_JANELA: definido pelo perfil, acima
-# ENVIO_DISPERSAO: definido pelo perfil, acima
-# PROPORCAO_IMPORTADOS: definido pelo perfil, acima
-# BUSCA_HORAS: definido pelo perfil, acima
-# VALIDADE_HORAS: definido pelo perfil, acima
-# FAMILIAS_IMPORTADAS: definido pelo perfil, acima
+# O PERFIL É QUEM MANDA. As constantes homônimas lá em cima são os defaults
+# documentados; estas reatribuições vêm depois e vencem no import. (Um passe
+# de dedup em 19/08 comentou estas linhas por engano — mascarado porque os
+# valores do perfil de perfumes coincidiam com as constantes. Teste cobre.)
+ENVIOS_POR_DIA = PERFIL.envios_por_dia
+ENVIO_INICIO_JANELA = PERFIL.inicio_janela
+ENVIO_FIM_JANELA = PERFIL.fim_janela
+ENVIO_DISPERSAO = PERFIL.dispersao
+PROPORCAO_IMPORTADOS = PERFIL.proporcao_preferidas
+BUSCA_HORAS = PERFIL.busca_horas
+VALIDADE_HORAS = PERFIL.validade_horas
+FAMILIAS_IMPORTADAS = tuple(nicho.ativo().familias_preferidas)
+
+# Re-promoção (blueprint §10): oferta JÁ ENVIADA cujo preço caiu de novo em
+# relação ao preço DA ÉPOCA DO ENVIO volta à fila como novidade. Comparar com
+# o preço enviado (não com a última coleta) evita ping-pong em oscilação.
+QUEDA_REPUBLICA_PCT = 15      # % de queda que justifica republicar. 0 desliga
 
 BANCO = os.environ.get("ML_BANCO", os.path.join(DADOS, "ofertas.db"))
 
@@ -623,6 +632,7 @@ COLUNAS_NOVAS = {
     "rival_preco": "REAL",
     "rival_link": "TEXT NOT NULL DEFAULT ''",
     "titulo_norm": "TEXT NOT NULL DEFAULT ''",
+    "preco_enviado": "REAL",
     "vendedor": "TEXT NOT NULL DEFAULT ''",
     "loja": "TEXT NOT NULL DEFAULT ''",
     "loja_oficial": "INTEGER NOT NULL DEFAULT 0",
@@ -877,9 +887,31 @@ def salvar_oferta(con: sqlite3.Connection, o: Oferta) -> bool:
     dados do produto mas preserva link de afiliado e status de envio.
     """
     ts = agora().isoformat(timespec="seconds")
-    ja_existe = con.execute(
-        "SELECT 1 FROM ofertas WHERE mlb_id = ? AND perfil = ?", (o.mlb_id, PERFIL_ATIVO)
-    ).fetchone() is not None
+    existente = con.execute(
+        "SELECT status_envio, preco_enviado FROM ofertas "
+        "WHERE mlb_id = ? AND perfil = ?", (o.mlb_id, PERFIL_ATIVO)
+    ).fetchone()
+    ja_existe = existente is not None
+
+    # ── re-promoção: caiu de preço depois de enviada? volta à fila ──
+    if (ja_existe and QUEDA_REPUBLICA_PCT
+            and existente["status_envio"] == "ENVIADO"
+            and (existente["preco_enviado"] or 0) > 0
+            and o.preco_promocional > 0):
+        base = existente["preco_enviado"]
+        queda = (base - o.preco_promocional) / base * 100
+        if queda >= QUEDA_REPUBLICA_PCT:
+            con.execute(
+                "UPDATE ofertas SET status_envio='PENDENTE', tentativas=0, "
+                "proxima_tentativa=NULL, erro='', atualizado_em=? WHERE mlb_id=?",
+                (ts, o.mlb_id),
+            )
+            # libera a trava de entrega — sem isto a idempotência (correta
+            # contra duplicata) bloquearia a republicação legítima
+            con.execute("DELETE FROM entregas WHERE mlb_id=? AND perfil=?",
+                        (o.mlb_id, PERFIL_ATIVO))
+            ok(f"re-promoção: {o.nome[:44]} caiu de "
+               f"{reais(base)} para {reais(o.preco_promocional)} (−{queda:.0f}%)")
 
     # o mesmo perfume com outro MLB_ID (avulso vs catálogo) já na fila:
     # não cria segunda linha, senão o grupo recebe a oferta duas vezes
@@ -1113,7 +1145,8 @@ def reconciliar_entregas(con, buscar=mensagens_do_grupo) -> int:
             con.execute("UPDATE entregas SET status='enviada', atualizado_em=? "
                         "WHERE mlb_id=? AND canal=?", (ts, p["mlb_id"], p["canal"]))
             con.execute("UPDATE ofertas SET status_envio='ENVIADO', enviado_em=?, "
-                        "atualizado_em=? WHERE mlb_id=?", (ts, ts, p["mlb_id"]))
+                        "atualizado_em=?, preco_enviado=preco_promocional "
+                        "WHERE mlb_id=?", (ts, ts, p["mlb_id"]))
             ok(f"entrega recuperada pós-crash: {p['mlb_id']} já estava no grupo")
         else:
             # não chegou: libera a reserva, a oferta volta à fila normalmente

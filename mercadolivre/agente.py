@@ -231,7 +231,8 @@ def bloco3_enviar(
 
         con.execute(
             "UPDATE ofertas SET status_envio='ENVIADO', erro='', "
-            "proxima_tentativa=NULL, enviado_em=?, atualizado_em=? WHERE mlb_id=?",
+            "proxima_tentativa=NULL, enviado_em=?, atualizado_em=?, "
+            "preco_enviado=preco_promocional WHERE mlb_id=?",
             (ts, ts, linha["mlb_id"]),
         )
         con.commit()

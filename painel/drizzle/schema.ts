@@ -44,6 +44,7 @@ export const ofertas = pgTable("ofertas", {
   criadoEm: text("criado_em").notNull(),
   atualizadoEm: text("atualizado_em").notNull(),
   enviadoEm: text("enviado_em"),
+  precoEnviado: doublePrecision("preco_enviado"),
 });
 
 export const estado = pgTable("estado", {
