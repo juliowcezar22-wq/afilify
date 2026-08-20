@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
-import { obterDb } from "@/lib/db";
+import { obterBanco, todas } from "@/lib/dados";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const db = obterDb();
-  let banco: "conectado" | "ausente" | "erro" = "ausente";
-  if (db) {
-    try { await db.execute(sql`SELECT 1`); banco = "conectado"; }
-    catch { banco = "erro"; }
+  const banco = obterBanco();
+  let estadoBanco: string = "ausente";
+  let workers: Array<{ perfil: string; visto_em: string; online: boolean }> = [];
+  if (banco) {
+    try {
+      const linhas = await todas(
+        "SELECT chave, valor FROM estado WHERE chave LIKE '%:heartbeat'");
+      const agora = Date.now();
+      workers = linhas.map((l) => {
+        const perfil = String(l.chave).replace(":heartbeat", "");
+        const visto = String(l.valor);
+        return { perfil, visto_em: visto,
+                 online: agora - new Date(visto).getTime() < 90_000 };
+      });
+      estadoBanco = banco.motor;
+    } catch { estadoBanco = "erro"; }
   }
-  return NextResponse.json({ ok: true, banco, ts: new Date().toISOString() });
+  return NextResponse.json({ ok: true, banco: estadoBanco, workers,
+                             ts: new Date().toISOString() });
 }
