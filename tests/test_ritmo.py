@@ -1,4 +1,11 @@
 """Cadência de envio — o ativo mais valioso do projeto, congelado em teste."""
+# ── blindagem: NUNCA tocar no banco real ──────────────────────────────
+# `discover -s tests` importa este módulo SEM rodar tests/__init__.py, então
+# o redirecionamento do banco precisa acontecer AQUI, antes de importar o
+# núcleo. Aprendido do jeito difícil em 20/08/2026.
+import os as _os, tempfile as _tf
+_os.environ.setdefault("ML_BANCO", _os.path.join(_tf.mkdtemp(prefix="afilify-test-"), "t.db"))
+
 import sys, os, random, statistics, unittest
 from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

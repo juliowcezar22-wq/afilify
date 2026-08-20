@@ -3,6 +3,13 @@
 Se o ML mudar o layout, estes testes quebram ANTES da produção quebrar
 em silêncio. Fixtures re-capturáveis com tests/fixtures/capturar.py.
 """
+# ── blindagem: NUNCA tocar no banco real ──────────────────────────────
+# `discover -s tests` importa este módulo SEM rodar tests/__init__.py, então
+# o redirecionamento do banco precisa acontecer AQUI, antes de importar o
+# núcleo. Aprendido do jeito difícil em 20/08/2026.
+import os as _os, tempfile as _tf
+_os.environ.setdefault("ML_BANCO", _os.path.join(_tf.mkdtemp(prefix="afilify-test-"), "t.db"))
+
 import sys, os, gzip, unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
