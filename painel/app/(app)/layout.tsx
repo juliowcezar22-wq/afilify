@@ -8,7 +8,7 @@ const MENU: Array<[string, string, boolean]> = [
   ["Fila de publicação", "/fila", true],
   ["Grupos & canais", "/canais", false],
   ["Copiador", "/copiador", false],
-  ["Templates", "/templates", false],
+  ["Templates", "/templates", true],
   ["Conexões", "/conexoes", true],
   ["Analytics", "/analytics", false],
   ["Logs", "/logs", true],
