@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Paleta Afilify — direção visual definida pelo produto (dark SaaS) */
+@theme {
+  --color-fundo: #090B0F;
+  --color-carta: #11151B;
+  --color-carta2: #171C24;
+  --color-tinta: #F5F7FA;
+  --color-tinta2: #8B95A5;
+  --color-acento: #B8FF3D;
+  --color-linha: #1E2530;
+  --color-ok: #4ADE80;
+  --color-erro: #F87171;
+  --color-alerta: #FBBF24;
+}
+
+html { color-scheme: dark; }
+body { background: var(--color-fundo); color: var(--color-tinta); }
