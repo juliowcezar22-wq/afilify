@@ -36,8 +36,8 @@ from datetime import datetime, timedelta, timezone
 from nucleo.comum import *  # noqa: F401,F403
 from mercadolivre.config import *  # noqa: F401,F403
 from nucleo.comum import (
-    AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO, mensagens_do_grupo,
-    uazapi_configurado,
+    AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO, clonador_cfg,
+    mensagens_do_grupo, uazapi_configurado,
 )
 from mercadolivre.buscador import (
     baixar_busca, contexto_da_busca, extrair_ofertas_json, normalizar,
@@ -228,17 +228,18 @@ def achar_no_ml(
 
 def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
     """Olha os grupos rivais e traz para a sua fila o que eles anunciaram."""
-    if not CLONE_ATIVO or not CLONE_GRUPOS:
+    cfg = clonador_cfg(con)
+    if not cfg["ativo"] or not cfg["grupos"]:
         return 0
     if not uazapi_configurado():
         aviso("BLOCO 4 — uazapi não configurado")
         return 0
 
-    info(f"BLOCO 4 — monitorando {len(CLONE_GRUPOS)} grupo(s) rival(is)")
-    corte_ms = (agora() - timedelta(minutes=CLONE_JANELA_MIN)).timestamp() * 1000
+    info(f"BLOCO 4 — monitorando {len(cfg['grupos'])} grupo(s) rival(is)")
+    corte_ms = (agora() - timedelta(minutes=cfg['janela_min'])).timestamp() * 1000
     novas = 0
 
-    for jid in CLONE_GRUPOS:
+    for jid in cfg['grupos']:
         chave = f"clone_visto_{jid}"
         ja_visto = set(filter(None, ler_estado(con, chave).split(",")))
         try:

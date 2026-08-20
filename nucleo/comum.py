@@ -1107,6 +1107,18 @@ def ritmo_cfg(con) -> dict:
     return {**padrao, **{k: v for k, v in cfg.items() if v is not None}}
 
 
+def clonador_cfg(con) -> dict:
+    """Config do monitor de rivais: painel por cima do perfil."""
+    padrao = {
+        "ativo": PERFIL.clone_ativo,
+        "grupos": list(PERFIL.clone_grupos),
+        "intervalo_seg": 180,
+        "janela_min": 90,
+    }
+    cfg = config_json(con, "clonador", {})
+    return {**padrao, **{k: v for k, v in cfg.items() if v is not None}}
+
+
 def garantir_config(con) -> int:
     """Semeia chaves ausentes com os valores vigentes (nicho/constantes)."""
     n_semeadas = 0
@@ -1116,6 +1128,12 @@ def garantir_config(con) -> int:
             "base": MENSAGEM_BASE,
             "linha_loja_oficial": LINHA_LOJA_OFICIAL,
             "rodape": RODAPE_MENSAGEM,
+        },
+        "clonador": {
+            "ativo": PERFIL.clone_ativo,
+            "grupos": list(PERFIL.clone_grupos),
+            "intervalo_seg": 180,
+            "janela_min": 90,
         },
         "ritmo": {
             "envios_por_dia": list(ENVIOS_POR_DIA),

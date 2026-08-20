@@ -58,7 +58,7 @@ class Config(unittest.TestCase):
             self.assertEqual(sortear_headline(self.con, linha_fake()), "SÓ ESTA")
 
     def test_seed_grava_uma_vez_e_respeita_edicao(self):
-        self.assertEqual(garantir_config(self.con), 3)   # headlines + mensagem + ritmo
+        self.assertEqual(garantir_config(self.con), 4)   # headlines+mensagem+ritmo+clonador
         self.assertEqual(garantir_config(self.con), 0)   # idempotente
         gravar_config(self.con, "headlines", {"geral": ["EDITADA"]})
         self.assertEqual(garantir_config(self.con), 0)   # seed NUNCA sobrescreve
@@ -71,6 +71,31 @@ class Config(unittest.TestCase):
         self.con.commit()
         m = montar_mensagem(linha_fake(), self.con)      # cai no fallback
         self.assertIn("R$ 239,00", m)
+
+
+class Clonador(unittest.TestCase):
+    def setUp(self):
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
+        self.con = abrir_banco()
+        self.con.execute("DELETE FROM config"); self.con.commit()
+
+    def tearDown(self):
+        self.con.close()
+
+    def test_padrao_vem_do_perfil(self):
+        cfg = comum.clonador_cfg(self.con)
+        self.assertEqual(cfg["ativo"], comum.PERFIL.clone_ativo)
+        self.assertEqual(cfg["grupos"], list(comum.PERFIL.clone_grupos))
+
+    def test_desligar_pelo_painel_para_o_bloco4(self):
+        from mercadolivre.clonador import bloco4_clonar
+        gravar_config(self.con, "clonador", {"ativo": False})
+        self.assertEqual(bloco4_clonar(self.con), 0)   # sem rede, sem varredura
+
+    def test_adicionar_rival_pelo_painel(self):
+        gravar_config(self.con, "clonador", {"grupos": ["a@g.us", "b@g.us"]})
+        self.assertEqual(len(comum.clonador_cfg(self.con)["grupos"]), 2)
 
 
 class Ritmo(unittest.TestCase):

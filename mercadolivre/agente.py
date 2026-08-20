@@ -58,7 +58,7 @@ from mercadolivre.buscador import (
     total_de_paginas,
 )
 from mercadolivre.clonador import (
-    CLONE_ATIVO, CLONE_GRUPOS, CLONE_INTERVALO_SEG, bloco4_clonar,
+    bloco4_clonar,
 )
 
 # BLOCO 3 — MENSAGEM E ENVIO NO GRUPO
@@ -509,7 +509,8 @@ def hora_de_clonar(con: sqlite3.Connection, momento: datetime) -> bool:
     if not ultimo:
         return True
     try:
-        return (momento - datetime.fromisoformat(ultimo)).total_seconds() >= CLONE_INTERVALO_SEG
+        return ((momento - datetime.fromisoformat(ultimo)).total_seconds()
+                >= clonador_cfg(con)["intervalo_seg"])
     except ValueError:
         return True
 
@@ -574,7 +575,7 @@ def cmd_rodar(args) -> int:
                 bloco1_buscar(con, args.paginas)
                 bloco2_links(con)
 
-            if not _parar and CLONE_ATIVO and hora_de_clonar(con, momento):
+            if not _parar and clonador_cfg(con)["ativo"] and hora_de_clonar(con, momento):
                 gravar_estado(con, "ultimo_clone", momento.isoformat(timespec="seconds"))
                 if bloco4_clonar(con):
                     bloco2_links(con)
