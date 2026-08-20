@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Perfil:
     nome: str
+    ativo: bool = True
     nicho: str = "perfumes"
     marketplaces: list = field(default_factory=lambda: ["mercadolivre"])
     grupo_whatsapp: str = ""
@@ -38,6 +39,7 @@ def carregar(nome: str) -> Perfil:
     g = lambda k, p=None: getattr(mod, k, p)
     return Perfil(
         nome=g("NOME", nome),
+        ativo=g("ATIVO", True),
         nicho=g("NICHO", "perfumes"),
         marketplaces=g("MARKETPLACES", ["mercadolivre"]),
         grupo_whatsapp=g("GRUPO_WHATSAPP", ""),
@@ -67,3 +69,26 @@ def usar(nome: str) -> Perfil:
     global _ativo
     _ativo = carregar(nome)
     return _ativo
+
+
+def listar() -> list[Perfil]:
+    """Todos os perfis declarados em perfis/*.py (ordem alfabética)."""
+    pasta = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "perfis")
+    nomes = sorted(
+        f[:-3] for f in os.listdir(pasta)
+        if f.endswith(".py") and f != "__init__.py"
+    )
+    return [carregar(n) for n in nomes]
+
+
+def escolher_para_rodar(perfis: list[Perfil]) -> tuple[list[Perfil], list[tuple[str, str]]]:
+    """(rodáveis, pulados_com_motivo). O runner decide o resto (locks)."""
+    rodar, pulados = [], []
+    for p in perfis:
+        if not p.ativo:
+            pulados.append((p.nome, "ATIVO=False"))
+        elif not p.grupo_whatsapp:
+            pulados.append((p.nome, "sem GRUPO_WHATSAPP definido"))
+        else:
+            rodar.append(p)
+    return rodar, pulados

@@ -478,7 +478,8 @@ VERDE, VERMELHO, AMARELO, CINZA, AZUL, FIM = (
 
 
 def _log(marca: str, cor: str, msg: str) -> None:
-    print(f"{CINZA}{agora():%d/%m %H:%M:%S}{FIM} {cor}{marca}{FIM} {msg}", flush=True)
+    prefixo = os.environ.get("LOG_PREFIXO", "")
+    print(f"{CINZA}{agora():%d/%m %H:%M:%S}{FIM} {prefixo}{cor}{marca}{FIM} {msg}", flush=True)
 
 
 def info(msg: str) -> None:

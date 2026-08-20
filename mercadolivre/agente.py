@@ -544,6 +544,8 @@ def cmd_rodar(args) -> int:
 
     while not _parar:
         momento = agora()
+        # pulso de vida: o dashboard mostra "Worker ● Online" lendo isto
+        gravar_estado(con, "heartbeat", momento.isoformat(timespec="seconds"))
         try:
             if hora_de_buscar(con, momento):
                 gravar_estado(con, "ultima_busca", momento.isoformat(timespec="seconds"))

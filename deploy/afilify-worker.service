@@ -1,0 +1,24 @@
+[Unit]
+Description=Afilify — runner (um daemon por perfil ativo)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=afilify
+WorkingDirectory=/opt/afilify
+ExecStart=/usr/bin/python3 /opt/afilify/agente.py runner
+Restart=always
+RestartSec=30
+
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/afilify
+
+[Install]
+WantedBy=multi-user.target
