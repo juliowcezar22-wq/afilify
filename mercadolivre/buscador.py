@@ -960,6 +960,20 @@ def bloco2_links(con: sqlite3.Connection, lote: int = 20) -> int:
         for mlb_id, url_limpa in mapa.items():
             curto = links.get(url_limpa)
             if not curto:
+                # a API recusa alguns anúncios silenciosamente (inelegíveis
+                # para o programa). 5 recusas = desiste, sem retry eterno.
+                con.execute(
+                    "UPDATE ofertas SET tentativas = tentativas + 1 WHERE mlb_id=?",
+                    (mlb_id,))
+                n_rec = con.execute(
+                    "SELECT tentativas FROM ofertas WHERE mlb_id=?",
+                    (mlb_id,)).fetchone()["tentativas"]
+                if n_rec >= 5:
+                    con.execute(
+                        "UPDATE ofertas SET status_envio='ERRO', "
+                        "erro='afiliado: anúncio recusado pelo createLink', "
+                        "atualizado_em=? WHERE mlb_id=?", (ts, mlb_id))
+                    aviso(f"  {mlb_id}: recusado {n_rec}x pelo createLink — desisto")
                 continue
             con.execute(
                 "UPDATE ofertas SET link_afiliado = ?, atualizado_em = ? WHERE mlb_id = ?",
