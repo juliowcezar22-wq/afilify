@@ -51,3 +51,10 @@ export const estado = pgTable("estado", {
   chave: text("chave").primaryKey(),
   valor: text("valor").notNull(),
 });
+
+export const config = pgTable("config", {
+  perfil: text("perfil").notNull(),
+  chave: text("chave").notNull(),
+  valor: text("valor").notNull(),
+  atualizadoEm: text("atualizado_em").notNull(),
+});

@@ -606,6 +606,13 @@ CREATE TABLE IF NOT EXISTS ofertas (
 CREATE INDEX IF NOT EXISTS idx_ofertas_status ON ofertas(status_envio);
 CREATE INDEX IF NOT EXISTS idx_ofertas_titulo ON ofertas(titulo_norm);
 CREATE TABLE IF NOT EXISTS estado (chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS config (
+    perfil        TEXT NOT NULL,
+    chave         TEXT NOT NULL,
+    valor         TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL,
+    PRIMARY KEY (perfil, chave)
+);
 CREATE TABLE IF NOT EXISTS entregas (
     mlb_id        TEXT NOT NULL,
     canal         TEXT NOT NULL,
@@ -1015,7 +1022,7 @@ def grupo_de_headline(linha: sqlite3.Row) -> str:
 
 def sortear_headline(con: sqlite3.Connection | None, linha: sqlite3.Row) -> str:
     """Sorteia uma headline do pool, evitando repetir a última usada."""
-    hl = nicho.ativo().headlines
+    hl = config_json(con, "headlines", nicho.ativo().headlines)
     pool = hl.get(grupo_de_headline(linha)) or hl.get("geral") or ["🔥 OFERTA"]
     ultima = ler_estado(con, "ultima_headline") if con is not None else ""
     opcoes = [h for h in pool if h != ultima] or list(pool)
@@ -1025,12 +1032,13 @@ def sortear_headline(con: sqlite3.Connection | None, linha: sqlite3.Row) -> str:
     return escolhida
 
 
-def linha_da_loja(linha: sqlite3.Row) -> str:
+def linha_da_loja(linha: sqlite3.Row, con=None) -> str:
     loja = (linha["loja"] or "").strip()
     if not loja:
         return "\n"
     if linha["loja_oficial"]:
-        return LINHA_LOJA_OFICIAL.format(loja=loja)
+        cfg = config_json(con, "mensagem", {})
+        return (cfg.get("linha_loja_oficial") or LINHA_LOJA_OFICIAL).format(loja=loja)
     return LINHA_LOJA_COMUM.format(loja=loja) if MOSTRAR_LOJA_COMUM else "\n"
 
 
@@ -1041,15 +1049,69 @@ def montar_mensagem(linha: sqlite3.Row, con: sqlite3.Connection | None = None) -
     condicao = (linha["condicao"] or "").strip()
     promocional = reais(linha["preco_promocional"]) + (f" {condicao}" if condicao else "")
 
-    texto = MENSAGEM_BASE.format(
+    cfg = config_json(con, "mensagem", {})
+    modelo = cfg.get("base") or MENSAGEM_BASE
+    rodape = cfg.get("rodape") if cfg.get("rodape") is not None else RODAPE_MENSAGEM
+    texto = modelo.format(
         headline=sortear_headline(con, linha),
         nome=nome if len(nome) <= 110 else nome[:109] + "…",
         preco_original=reais(linha["preco_original"]),
         preco_promocional=promocional,
-        linha_loja=linha_da_loja(linha),
+        linha_loja=linha_da_loja(linha, con),
         link=linha["link_afiliado"] or linha["url"],
     )
-    return f"{texto}\n\n{RODAPE_MENSAGEM}" if RODAPE_MENSAGEM else texto
+    return f"{texto}\n\n{rodape}" if rodape else texto
+
+
+# ══════════════════════════════════════════════════════════════════════
+# CONFIG DINÂMICA — o painel edita, o motor obedece SEM restart
+# ══════════════════════════════════════════════════════════════════════
+# JSON por (perfil, chave), lido a cada uso (~1 leitura por envio). Chave
+# ausente = valores do nicho/constantes. garantir_config() semeia as chaves
+# na subida do daemon com os valores vigentes — ligar isto não muda NADA
+# até alguém editar de fato pelo painel.
+
+def config_json(con, chave: str, padrao):
+    if con is None:
+        return padrao
+    try:
+        linha = con.execute(
+            "SELECT valor FROM config WHERE perfil = ? AND chave = ?",
+            (PERFIL_ATIVO, chave)).fetchone()
+        return json.loads(linha["valor"]) if linha else padrao
+    except Exception:
+        return padrao          # config quebrada nunca derruba publicação
+
+
+def gravar_config(con, chave: str, valor) -> None:
+    con.execute(
+        "INSERT INTO config (perfil, chave, valor, atualizado_em) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT (perfil, chave) DO UPDATE SET valor = excluded.valor, "
+        "atualizado_em = excluded.atualizado_em",
+        (PERFIL_ATIVO, chave, json.dumps(valor, ensure_ascii=False),
+         agora().isoformat(timespec="seconds")))
+    con.commit()
+
+
+def garantir_config(con) -> int:
+    """Semeia chaves ausentes com os valores vigentes (nicho/constantes)."""
+    n_semeadas = 0
+    padroes = {
+        "headlines": nicho.ativo().headlines,
+        "mensagem": {
+            "base": MENSAGEM_BASE,
+            "linha_loja_oficial": LINHA_LOJA_OFICIAL,
+            "rodape": RODAPE_MENSAGEM,
+        },
+    }
+    for chave, valor in padroes.items():
+        existe = con.execute(
+            "SELECT 1 FROM config WHERE perfil = ? AND chave = ?",
+            (PERFIL_ATIVO, chave)).fetchone()
+        if not existe:
+            gravar_config(con, chave, valor)
+            n_semeadas += 1
+    return n_semeadas
 
 
 # ══════════════════════════════════════════════════════════════════════

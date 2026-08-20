@@ -536,6 +536,9 @@ def cmd_rodar(args) -> int:
 
     con = abrir_banco()
     reconciliar_entregas(con)      # crash anterior? resolve antes de operar
+    semeadas = garantir_config(con)
+    if semeadas:
+        info(f"config: {semeadas} chave(s) semeada(s) com os valores vigentes")
     ok(
         f"daemon no ar · fuso {TZ} · busca {BUSCA_HORAS}h · "
         f"envio {'adaptativo' if ENVIO_ADAPTATIVO else 'fixo'} · "
