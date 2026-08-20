@@ -9,7 +9,7 @@ const MENU: Array<[string, string, boolean]> = [
   ["Grupos & canais", "/canais", false],
   ["Copiador", "/copiador", false],
   ["Templates", "/templates", false],
-  ["Conexões", "/conexoes", false],
+  ["Conexões", "/conexoes", true],
   ["Analytics", "/analytics", false],
   ["Logs", "/logs", true],
   ["Configurações", "/config", false],
