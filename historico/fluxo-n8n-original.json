@@ -1,0 +1,1419 @@
+{
+  "name": "BOT DE Promoções do ML - PERFUMES (v2) Sem I.A",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## BLOCO 1 — BUSCA DE OFERTAS (PERFUMES)\n\n**Roda 4x ao dia (07h, 12h, 17h, 22h)**\n\n- Categoria fixa: MLB6284 (Perfumes)\n- Filtro estrito: keywords obrigatórias + blacklist + volume em ML + desconto mínimo 10%\n- Dedup automático por MLB_ID (não duplica linha na planilha)\n\n⚠️ A planilha precisa ter a coluna **MLB_ID** como primeira coluna",
+        "height": 640,
+        "width": 1500,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        -48
+      ],
+      "id": "a0dd6ed3-1769-44ce-9126-352c4733e758",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## BLOCO 2 — GERA LINK DE AFILIADO\n\nDispara quando uma nova linha é adicionada na planilha.\nGera o link curto via API do programa de afiliados ML.\n\n⚠️ O cookie do node 'API: Gerar Link Afiliado ML' expira em ~30 dias. Atualize periodicamente.",
+        "height": 632,
+        "width": 1388,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        -48
+      ],
+      "id": "2eb6d135-6168-4512-96af-0f9a3c0aa1e3",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## BLOCO 3 — ENVIO WHATSAPP\n\n**Cron: a cada 40 minutos**\n**Filtro: só envia entre 8h e 22h**\n**Limit: 1 oferta por execução**\n\nResultado: ~21 mensagens/dia espalhadas (saudável para Z-API).\n\n⚠️ Confira o número/ID do grupo no node 'Z-API: Enviar para WhatsApp' antes de ativar.",
+        "height": 768,
+        "width": 2940,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        640
+      ],
+      "id": "87da4131-b1c5-4e6c-9be1-a43529269e8f",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            },
+            {
+              "triggerAtHour": 12
+            },
+            {
+              "triggerAtHour": 17
+            },
+            {
+              "triggerAtHour": 22
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -32,
+        208
+      ],
+      "id": "01a3fb25-3057-4a83-bcab-9ad249e80e44",
+      "name": "Trigger: Início Diário (4x ao dia)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "CATEGORIA_ID",
+              "value": "MLB6284",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "FILTRA_OFERTA_DIA",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "3",
+              "name": "BUSCA_CUPONS",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        208
+      ],
+      "id": "08c065dc-21ea-40c2-8c5a-2fce76246218",
+      "name": "Set: Filtros da Busca"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pages = [];\nfor (let i = 1; i <= 50; i++) pages.push({ json: { page: i } });\nreturn pages;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        208
+      ],
+      "id": "05ed18c8-8f1f-4e06-adbe-acdd251f7568",
+      "name": "Config: Páginas para Busca"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        544,
+        208
+      ],
+      "id": "0a8562d2-aa40-4e21-a923-5319f7ec5839",
+      "name": "Loop: Cada Página"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.mercadolivre.com.br/ofertas?category={{ $('Set: Filtros da Busca').item.json.CATEGORIA_ID }}&page={{$json.page}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        720,
+        304
+      ],
+      "id": "b4b0d1f6-1555-4398-b798-1a967dc1609b",
+      "name": "API: Busca Ofertas Mercado Livre"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =================== EXTRAÇÃO COM FILTRO ESTRITO DE PERFUMES ===================\nconst items = $input.all();\nconst products = [];\n\nconst KEYWORDS_OBRIGATORIAS = [\n  'PERFUME', 'COLÔNIA', 'COLONIA', 'PARFUM',\n  'EAU DE TOILETTE', 'EAU DE PARFUM',\n  'BODY SPLASH', 'BODY MIST',\n  'FRAGRÂNCIA', 'FRAGRANCIA'\n];\nconst REGEX_EDP_EDT = /\\b(EDP|EDT)\\b/;\n\nconst BLACKLIST = [\n  'SACHÊ', 'SACHE', 'DIFUSOR', 'AROMATIZADOR',\n  'VELA', 'AMBIENTE', 'TECIDO', 'AUTOMOTIVO',\n  'CARRO', 'CHEIRINHO', 'PAPEL', 'GAVETA',\n  'AROMA DE AMBIENTE', 'HOME SPRAY',\n  'SABONETE', 'CREME PERFUMADO', 'HIDRATANTE',\n  'LOÇÃO PERFUMADA', 'LOCAO PERFUMADA',\n  'SHAMPOO', 'CONDICIONADOR', 'DESODORANTE',\n  'ANTITRANSPIRANTE', 'TALCO',\n  'AMOSTRA', 'DECANT', 'MINIATURA', 'TESTER',\n  'POTE VAZIO', 'FRASCO VAZIO', 'PARA REVENDA'\n];\n\nconst seenInThisRun = new Set();\n\nfor (const item of items) {\n  const html = item.json.data || item.json.body || '';\n  if (!html) continue;\n\n  const blocks = html.split('class=\"andes-card poly-card');\n\n  for (let i = 1; i < blocks.length; i++) {\n    const content = blocks[i];\n\n    // ===== TÍTULO =====\n    const titleMatch = content.match(/class=\"poly-component__title\".*?>(.*?)<\\/a>/s);\n    const title = titleMatch ? titleMatch[1].replace(/<.*?>/g, '').trim() : '';\n    if (!title) continue;\n\n    const titleUpper = title.toUpperCase();\n\n    // ===== FILTRO 1: keyword obrigatória de perfume =====\n    const temKeyword = KEYWORDS_OBRIGATORIAS.some(k => titleUpper.includes(k))\n                    || REGEX_EDP_EDT.test(titleUpper);\n    if (!temKeyword) continue;\n\n    // ===== FILTRO 2: blacklist =====\n    if (BLACKLIST.some(k => titleUpper.includes(k))) continue;\n\n    // ===== FILTRO 3: precisa indicar mililitros (frasco real) =====\n    const temML = /\\b\\d{2,4}\\s?ML\\b/i.test(title);\n    if (!temML) continue;\n\n    // ===== LINK + MLB_ID =====\n    const linkMatch = content.match(/href=\"(.*?)\"/s);\n    const link = linkMatch\n      ? (linkMatch[1].startsWith('http') ? linkMatch[1] : 'https://www.mercadolivre.com.br' + linkMatch[1])\n      : '';\n    if (!link) continue;\n\n    const idMatch = link.match(/MLB[-]?\\d{8,15}/i);\n    const mlb_id = idMatch ? idMatch[0].replace(/-/g, '').toUpperCase() : '';\n    if (!mlb_id) continue;\n\n    // ===== FILTRO 4: dedup intra-execução =====\n    if (seenInThisRun.has(mlb_id)) continue;\n    seenInThisRun.add(mlb_id);\n\n    // ===== PREÇOS =====\n    const extractPrice = (htmlBlock) => {\n      if (!htmlBlock) return '';\n      const fractionMatch = htmlBlock.match(/class=\"andes-money-amount__fraction\".*?>(.*?)<\\/span>/);\n      const centsMatch = htmlBlock.match(/class=\"andes-money-amount__cents\".*?>(.*?)<\\/span>/);\n      const fraction = fractionMatch ? fractionMatch[1].replace(/\\./g, '') : '';\n      const cents = centsMatch ? centsMatch[1].trim() : '00';\n      return fraction ? `${fraction},${cents}` : '';\n    };\n\n    const prevBlock = content.match(/<s class=\".*?andes-money-amount--previous.*?>(.*?)<\\/s>/s);\n    const precoAnterior = extractPrice(prevBlock ? prevBlock[1] : '');\n\n    const currentBlock = content.match(/<div class=\"poly-price__current\".*?>(.*?)<\\/div>/s);\n    const novoPreco = extractPrice(currentBlock ? currentBlock[1] : '');\n\n    // ===== FILTRO 5: precisa ter desconto real =====\n    if (!novoPreco || !precoAnterior) continue;\n    const pAnt = parseFloat(precoAnterior.replace(',', '.'));\n    const pNov = parseFloat(novoPreco.replace(',', '.'));\n    if (!(pAnt > pNov)) continue;\n\n    // ===== FILTRO 6: desconto mínimo 10% =====\n    const descontoPct = ((pAnt - pNov) / pAnt) * 100;\n    if (descontoPct < 10) continue;\n\n    // ===== IMAGEM =====\n    const imgMatch = content.match(/<img.*?class=\"poly-component__picture\".*?src=\"(.*?)\"/s)\n                  || content.match(/<img.*?src=\"(.*?)\"/s);\n    let imageUrl = imgMatch ? imgMatch[1] : '';\n    if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;\n\n    // ===== BADGE (sem usar HTML inteiro) =====\n    const hlMatch = content.match(/class=\"poly-component__highlight\".*?>(.*?)<\\/span>/s);\n    const highlight = hlMatch ? hlMatch[1].replace(/<.*?>/g, '').trim() : '';\n    const hlText = highlight.toUpperCase();\n\n    let finalBadge = 'PROMOÇÃO GERAL';\n    if (hlText.includes('OFERTA DO DIA')) finalBadge = 'OFERTA DO DIA';\n    else if (hlText.includes('RELÂMPAGO') || hlText.includes('RELAMPAGO')) finalBadge = 'OFERTA RELÂMPAGO';\n    else if (hlText.includes('MAIS VENDIDO')) finalBadge = 'MAIS VENDIDO';\n    else if (hlText.includes('CUPOM')) finalBadge = 'CUPOM';\n\n    products.push({\n      json: {\n        mlb_id,\n        eTituloProduto: title,\n        zProdutoLink: link,\n        novoPreco,\n        precoAnterior,\n        descontoPct: Math.round(descontoPct) + '%',\n        imagemLink: imageUrl,\n        highlight: finalBadge\n      }\n    });\n  }\n}\nreturn products;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        304
+      ],
+      "id": "3bb751b0-2348-4be5-844d-5db2b20a65d0",
+      "name": "Code: Extrair Dados das Ofertas"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg",
+          "mode": "list",
+          "cachedResultName": "Ofertas Encontradas ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "NOME": "={{ $json.eTituloProduto }}",
+            "URL": "={{ $json.zProdutoLink }}",
+            "IMAGE": "={{ $json.imagemLink }}",
+            "PREÇO ORIGINAL": "={{ $json.precoAnterior }}",
+            "PREÇO PROMOCIONAL": "={{ $json.novoPreco }}",
+            "BADGE": "={{ $json.highlight }}",
+            "MLB_ID": "={{ $json.mlb_id }}"
+          },
+          "matchingColumns": [
+            "MLB_ID"
+          ],
+          "schema": [
+            {
+              "id": "NOME",
+              "displayName": "NOME",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PREÇO PROMOCIONAL",
+              "displayName": "PREÇO PROMOCIONAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PREÇO ORIGINAL",
+              "displayName": "PREÇO ORIGINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BADGE",
+              "displayName": "BADGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "IMAGE",
+              "displayName": "IMAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LINK DE AFILIADO",
+              "displayName": "LINK DE AFILIADO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "STATUS ENVIO",
+              "displayName": "STATUS ENVIO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "MLB_ID",
+              "displayName": "MLB_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1088,
+        304
+      ],
+      "id": "e971f270-ec97-4c7c-9c89-8061b8971889",
+      "name": "Sheets: Adiciona/Atualiza Ofertas",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HY807yWlEqMut7X6",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg",
+          "mode": "list",
+          "cachedResultName": "Ofertas Encontradas ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit#gid=0"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        176
+      ],
+      "id": "28ac22e2-3668-44e9-8e78-14699921362f",
+      "name": "Trigger: Nova Linha na Planilha",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "v1kZfrRC7bHQ16fU",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1712,
+        176
+      ],
+      "id": "4a3dc11a-b48a-41bd-be1c-b0804613de89",
+      "name": "Loop: Processar Links"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.url || $json.URL || \"\";\nif (!raw) throw new Error(\"Não veio url do produto no item.\");\n\nlet clean = raw.trim();\nclean = clean.split(\"#\")[0];\nclean = clean.split(\"?\")[0];\nclean = clean.replace(/^https?:\\/\\/click\\d\\.mercadolivre\\.com\\.br\\/mclics\\/.*url=/i, \"\");\n\nreturn [{ json: { ...$json, clean_url: clean } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        304
+      ],
+      "id": "1846782d-840c-47cf-8720-c89c4b3b5732",
+      "name": "Code: Limpar URL do Produto"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json, text/plain, */*"
+            },
+            {
+              "name": "accept-language",
+              "value": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+            },
+            {
+              "name": "origin",
+              "value": "https://www.mercadolivre.com.br"
+            },
+            {
+              "name": "priority",
+              "value": "u=1, i"
+            },
+            {
+              "name": "referer",
+              "value": "https://www.mercadolivre.com.br/afiliados/linkbuilder#hub"
+            },
+            {
+              "name": "sec-ch-ua",
+              "value": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\""
+            },
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Cookie",
+              "value": "[REMOVIDO — cookie de sessão do ML; o vivo fica em .mlcookie]"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tag\": \"ceju20240518183443\",\n  \"urls\": [\n    \"{{ $json.clean_url }}\"\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2112,
+        304
+      ],
+      "id": "d8ad8638-878d-481b-8b22-3dda08366469",
+      "name": "API: Gerar Link Afiliado ML"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg",
+          "mode": "list",
+          "cachedResultName": "Ofertas Encontradas ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LINK DE AFILIADO": "={{ $json.urls[0].short_url }}",
+            "URL": "={{ $('Trigger: Nova Linha na Planilha').item.json.URL }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "URL"
+          ],
+          "schema": [
+            {
+              "id": "NOME",
+              "displayName": "NOME",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PREÇO PROMOCIONAL",
+              "displayName": "PREÇO PROMOCIONAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PREÇO ORIGINAL",
+              "displayName": "PREÇO ORIGINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "BADGE",
+              "displayName": "BADGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "IMAGE",
+              "displayName": "IMAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "LINK DE AFILIADO",
+              "displayName": "LINK DE AFILIADO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "STATUS ENVIO",
+              "displayName": "STATUS ENVIO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "MLB_ID",
+              "displayName": "MLB_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2304,
+        304
+      ],
+      "id": "e68a3ae0-dc9d-4c24-9453-7365c68ce418",
+      "name": "Sheets: Salva Link de Afiliado",
+      "retryOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HY807yWlEqMut7X6",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2512,
+        304
+      ],
+      "id": "8796f85d-d225-45b2-839e-39a2b5030091",
+      "name": "Fim: Processo de Link"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 40
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        944
+      ],
+      "id": "f0c67059-6576-4fa3-8821-f653c4d2bab0",
+      "name": "Trigger: Checar Pendentes WhatsApp"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-hora-min",
+              "leftValue": "={{ $now.hour }}",
+              "rightValue": 8,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "cond-hora-max",
+              "leftValue": "={{ $now.hour }}",
+              "rightValue": 22,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        1120
+      ],
+      "id": "c3bb7f04-0936-4b3c-988e-57f4033f9f60",
+      "name": "IF: Horário 8h-22h",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg",
+          "mode": "list",
+          "cachedResultName": "Ofertas Encontradas ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        432,
+        944
+      ],
+      "id": "ca27d9f9-dfe4-4d1f-a271-fde5dd32cd06",
+      "name": "Sheets: Buscar Ofertas não Enviadas",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HY807yWlEqMut7X6",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        880,
+        944
+      ],
+      "id": "52ba482f-ae38-41a0-a295-2008c574bee1",
+      "name": "Loop: Envio WhatsApp"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b16a6572-b181-4bd6-b1ed-a1377c1cd9d0",
+                    "leftValue": "={{ $json.BADGE }}",
+                    "rightValue": "OFERTA DO DIA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "oferta_do_dia"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ce8fcf2f-d9cf-4fad-aa77-9f03b213631c",
+                    "leftValue": "={{ $json.BADGE }}",
+                    "rightValue": "OFERTA RELÂMPAGO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "oferta_relampago"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "72693470-4f5e-47cf-8e4d-70409594bab3",
+                    "leftValue": "={{ $json.BADGE }}",
+                    "rightValue": "MAIS VENDIDO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "mais_vendido"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "promocao_geral"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1104,
+        944
+      ],
+      "id": "0e4902e9-2f92-447a-928a-c688791c0397",
+      "name": "Switch: Tipo de Oferta"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f86e4e8e-c6ad-4ade-9284-7f482f2cd9a1",
+              "name": "mensagem",
+              "value": "=⏰ *OFERTA VÁLIDA SÓ HOJE!*\n\n📦 {{ $json.NOME }}\n\n💰 De ~~R$ {{ $json[\"PREÇO ORIGINAL\"] }}~~ por *R$ {{ $json[\"PREÇO PROMOCIONAL\"] }}*\n\n⚡ Corre que acaba rápido!\n\n🔗 {{ $json[\"LINK DE AFILIADO\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        720
+      ],
+      "id": "2b1afa40-0d05-4665-b87e-c77bc3c3329a",
+      "name": "Msg: Oferta do Dia"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f86e4e8e-c6ad-4ade-9284-7f482f2cd9a1",
+              "name": "mensagem",
+              "value": "=⚡ *RELÂMPAGO - ESTOQUE LIMITADO!*\n\n📦 {{ $json.NOME }}\n\n🔥 *R$ {{ $json[\"PREÇO PROMOCIONAL\"] }}*\n\n💥 Aproveita antes que esgote!\n\n🔗 {{ $json[\"LINK DE AFILIADO\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        880
+      ],
+      "id": "2b88628b-74e4-4e69-a19f-01079ad1443f",
+      "name": "Msg: Oferta Relâmpago"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f86e4e8e-c6ad-4ade-9284-7f482f2cd9a1",
+              "name": "mensagem",
+              "value": "=🏆 *BEST SELLER EM PROMOÇÃO*\n\n📦 {{ $json.NOME }}\n\n💰 ~~R$ {{ $json[\"PREÇO ORIGINAL\"] }}~~ → *R$ {{ $json[\"PREÇO PROMOCIONAL\"] }}*\n\n✅ Produto mais vendido da categoria!\n\n🔗 {{ $json[\"LINK DE AFILIADO\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        1040
+      ],
+      "id": "018b2428-d2c7-40cd-8bbf-d88255588788",
+      "name": "Msg: Mais Vendido"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f86e4e8e-c6ad-4ade-9284-7f482f2cd9a1",
+              "name": "mensagem",
+              "value": "=🔥 *PROMOÇÃO IMPERDÍVEL*\n\n📦 {{ $json.NOME }}\n\n💰 De R$ {{ $json[\"PREÇO ORIGINAL\"] }} por *R$ {{ $json[\"PREÇO PROMOCIONAL\"] }}*\n\n🔗 {{ $json[\"LINK DE AFILIADO\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        1232
+      ],
+      "id": "3ce3b92e-ec98-46e2-8996-5a3f6738179f",
+      "name": "Msg: Promoção Geral"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 11) + 5 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1840,
+        944
+      ],
+      "id": "5577773a-a345-44c4-aca4-9cb49ed653c6",
+      "name": "Wait: Pausa Humanizada",
+      "webhookId": "ed88994e-9219-4969-88ab-61af3d1be135"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pessoal.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "token",
+              "value": "[REMOVIDO — token uazapi]"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "120363408117538302@g.us"
+            },
+            {
+              "name": "type",
+              "value": "image"
+            },
+            {
+              "name": "file",
+              "value": "={{ $('Sheets: Buscar Ofertas não Enviadas').item.json.IMAGE }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2064,
+        944
+      ],
+      "id": "0dd52010-191a-44df-a767-bd4aeb11ff37",
+      "name": "Z-API: Enviar para WhatsApp"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg",
+          "mode": "list",
+          "cachedResultName": "Ofertas Encontradas ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1CegU6pyky259u74vgFJWS32ewSqwQ3GjryTUAtvR8Qg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "MLB_ID": "={{ $('Sheets: Buscar Ofertas não Enviadas').item.json.MLB_ID }}",
+            "STATUS ENVIO": "ENVIADO"
+          },
+          "matchingColumns": [
+            "MLB_ID"
+          ],
+          "schema": [
+            {
+              "id": "MLB_ID",
+              "displayName": "MLB_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NOME",
+              "displayName": "NOME",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PREÇO PROMOCIONAL",
+              "displayName": "PREÇO PROMOCIONAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PREÇO ORIGINAL",
+              "displayName": "PREÇO ORIGINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "BADGE",
+              "displayName": "BADGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "IMAGE",
+              "displayName": "IMAGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "LINK DE AFILIADO",
+              "displayName": "LINK DE AFILIADO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "STATUS ENVIO",
+              "displayName": "STATUS ENVIO",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2288,
+        944
+      ],
+      "id": "657b93ab-c43a-464f-8805-a4204b68dbd7",
+      "name": "Sheets: Marcar como Enviado",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HY807yWlEqMut7X6",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2528,
+        1024
+      ],
+      "id": "e4d25fd0-306f-4818-b786-13c55f75be28",
+      "name": "Fim: Processo de Envio"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: Início Diário (4x ao dia)": {
+      "main": [
+        [
+          {
+            "node": "Set: Filtros da Busca",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Filtros da Busca": {
+      "main": [
+        [
+          {
+            "node": "Config: Páginas para Busca",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config: Páginas para Busca": {
+      "main": [
+        [
+          {
+            "node": "Loop: Cada Página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Busca Ofertas Mercado Livre": {
+      "main": [
+        [
+          {
+            "node": "Code: Extrair Dados das Ofertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Extrair Dados das Ofertas": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Adiciona/Atualiza Ofertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Adiciona/Atualiza Ofertas": {
+      "main": [
+        [
+          {
+            "node": "Loop: Cada Página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger: Nova Linha na Planilha": {
+      "main": [
+        [
+          {
+            "node": "Loop: Processar Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop: Processar Links": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code: Limpar URL do Produto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Limpar URL do Produto": {
+      "main": [
+        [
+          {
+            "node": "API: Gerar Link Afiliado ML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Gerar Link Afiliado ML": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Salva Link de Afiliado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Salva Link de Afiliado": {
+      "main": [
+        [
+          {
+            "node": "Fim: Processo de Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fim: Processo de Link": {
+      "main": [
+        [
+          {
+            "node": "Loop: Processar Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger: Checar Pendentes WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Buscar Ofertas não Enviadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Horário 8h-22h": {
+      "main": [
+        []
+      ]
+    },
+    "Sheets: Buscar Ofertas não Enviadas": {
+      "main": [
+        [
+          {
+            "node": "Loop: Envio WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop: Envio WhatsApp": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Switch: Tipo de Oferta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Tipo de Oferta": {
+      "main": [
+        [
+          {
+            "node": "Msg: Oferta do Dia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Msg: Oferta Relâmpago",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Msg: Mais Vendido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Msg: Promoção Geral",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Msg: Oferta do Dia": {
+      "main": [
+        [
+          {
+            "node": "Wait: Pausa Humanizada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Msg: Oferta Relâmpago": {
+      "main": [
+        [
+          {
+            "node": "Wait: Pausa Humanizada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Msg: Mais Vendido": {
+      "main": [
+        [
+          {
+            "node": "Wait: Pausa Humanizada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Msg: Promoção Geral": {
+      "main": [
+        [
+          {
+            "node": "Wait: Pausa Humanizada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait: Pausa Humanizada": {
+      "main": [
+        [
+          {
+            "node": "Z-API: Enviar para WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Z-API: Enviar para WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Marcar como Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: Marcar como Enviado": {
+      "main": [
+        [
+          {
+            "node": "Fim: Processo de Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fim: Processo de Envio": {
+      "main": [
+        [
+          {
+            "node": "Loop: Envio WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop: Cada Página": {
+      "main": [
+        [
+          {
+            "node": "API: Busca Ofertas Mercado Livre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "43412c87-beb4-4fa3-bc18-e7cbdcb8144d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "100c5ef56819af22e75ceac1c9835b674136a19c0dc8bfd34e174f5cedd2923a"
+  },
+  "nodeGroups": [],
+  "id": "eFT91HAFUWNs5NzN",
+  "tags": []
+}

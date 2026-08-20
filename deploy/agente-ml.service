@@ -1,0 +1,25 @@
+[Unit]
+Description=Agente de promoções do Mercado Livre (perfumes)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=promocoes
+WorkingDirectory=/opt/grupo-promocoes/mercadolivre
+ExecStart=/usr/bin/python3 /opt/grupo-promocoes/mercadolivre/agente.py rodar
+Restart=always
+RestartSec=30
+
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# precisa escrever em dados/ e ler .env e .mlcookie da raiz
+ReadWritePaths=/opt/grupo-promocoes
+
+[Install]
+WantedBy=multi-user.target

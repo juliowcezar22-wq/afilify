@@ -1,0 +1,15 @@
+# credenciais — nunca versionar
+.env
+.mlcookie
+
+# dados de execução
+dados/
+*.db
+*.db-wal
+*.db-shm
+*.log
+.agente.lock
+
+__pycache__/
+*.pyc
+.DS_Store
