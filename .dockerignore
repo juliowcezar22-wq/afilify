@@ -1,0 +1,8 @@
+dados/
+painel/node_modules/
+painel/.next/
+historico/
+.git/
+*.log
+.env
+.mlcookie

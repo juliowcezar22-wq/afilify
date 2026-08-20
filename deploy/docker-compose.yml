@@ -1,0 +1,76 @@
+# Afilify na KVM 1 — blueprint Parte 13.
+#   cp deploy/exemplo.env deploy/.env   (preencher)
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: afilify
+      POSTGRES_USER: afilify
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no deploy/.env}
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=40"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afilify"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [interna]          # sem porta pública, de propósito
+
+  worker:
+    build: { context: .., dockerfile: deploy/Dockerfile.worker }
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      STORAGE: postgres
+      DATABASE_URL: postgres://afilify:${POSTGRES_PASSWORD}@db:5432/afilify
+      ML_AFFILIATE_TAG: ${ML_AFFILIATE_TAG}
+      ML_COOKIE_FILE: /segredos/mlcookie
+      UAZAPI_URL: ${UAZAPI_URL}
+      UAZAPI_TOKEN: ${UAZAPI_TOKEN}
+      TIMEZONE: America/Sao_Paulo
+    volumes:
+      - ../.mlcookie:/segredos/mlcookie:ro   # renovar = trocar arquivo + restart
+    networks: [interna]
+
+  painel:
+    image: afilify-painel        # buildada FORA da VPS (ver Dockerfile.painel)
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://afilify:${POSTGRES_PASSWORD}@db:5432/afilify
+      AUTH_SECRET: ${AUTH_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+      PAINEL_URL: https://${DOMINIO_PAINEL}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [interna]
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment: { DOMINIO_PAINEL: ${DOMINIO_PAINEL} }
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [interna]
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment: { PGPASSWORD: ${POSTGRES_PASSWORD} }
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - backups:/backups
+    networks: [interna]
+
+volumes: { pgdata: {}, caddy_data: {}, backups: {} }
+networks: { interna: {} }

@@ -1,0 +1,3 @@
+{$DOMINIO_PAINEL} {
+    reverse_proxy painel:3000
+}

@@ -1,0 +1,14 @@
+# Afilify — motor Python (runner multi-perfil)
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY agente.py runner.py ./
+COPY nucleo/ nucleo/
+COPY mercadolivre/ mercadolivre/
+COPY shopee/ shopee/
+COPY nichos/ nichos/
+COPY perfis/ perfis/
+COPY db/ db/
+ENV PYTHONUNBUFFERED=1 TZ=America/Sao_Paulo
+CMD ["python", "agente.py", "runner"]
