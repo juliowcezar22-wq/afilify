@@ -1,6 +1,6 @@
-# GRUPO PROMOÇÕES
+# Afilify
 
-Agentes que encontram promoções de perfume, geram link de afiliado e
+Plataforma de operações de ofertas e afiliados. Hoje: agentes que encontram promoções, geram link de afiliado e
 publicam num grupo de WhatsApp. Sem n8n, sem dependência externa —
 só Python 3.9+ da biblioteca padrão.
 
