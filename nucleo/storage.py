@@ -105,7 +105,9 @@ def conectar_pg(url: str = "") -> ConexaoPg:
         )
     con = ConexaoPg(url)
     raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ddl = os.path.join(raiz, "db", "0001_init.sql")
-    with open(ddl, encoding="utf-8") as f:
-        con.executescript(f.read())
+    pasta = os.path.join(raiz, "db")
+    for arquivo in sorted(os.listdir(pasta)):        # 0001, 0002, …
+        if arquivo.endswith(".sql"):
+            with open(os.path.join(pasta, arquivo), encoding="utf-8") as f:
+                con.executescript(f.read())
     return con

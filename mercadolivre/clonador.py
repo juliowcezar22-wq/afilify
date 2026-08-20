@@ -36,7 +36,8 @@ from datetime import datetime, timedelta, timezone
 from nucleo.comum import *  # noqa: F401,F403
 from mercadolivre.config import *  # noqa: F401,F403
 from nucleo.comum import (
-    AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO, uazapi_configurado,
+    AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO, mensagens_do_grupo,
+    uazapi_configurado,
 )
 from mercadolivre.buscador import (
     baixar_busca, contexto_da_busca, extrair_ofertas_json, normalizar,
@@ -223,16 +224,6 @@ def achar_no_ml(
     if melhor_nota >= 0.45:
         return melhor, f"mesmo perfume, outro anúncio (nota {melhor_nota:.2f})"
     return None, "nenhum candidato convincente"
-
-
-def mensagens_do_grupo(jid: str, limite: int = 20) -> list[dict]:
-    dados = requisitar_json(
-        UAZAPI_URL + "/message/find",
-        metodo="POST",
-        corpo=json.dumps({"chatid": jid, "limit": limite}).encode("utf-8"),
-        headers={"Content-Type": "application/json", "token": UAZAPI_TOKEN},
-    )
-    return dados.get("messages") or []
 
 
 def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:

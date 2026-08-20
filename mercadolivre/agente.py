@@ -164,6 +164,7 @@ def bloco3_enviar(
             return 0
         limite = min(limite, plano["cota"] - ja) if limite else plano["cota"] - ja
 
+    reconciliar_entregas(con)
     fila = fila_de_envio(con, limite)
     if not fila:
         info("BLOCO 3 — nenhuma oferta pendente com link pronto")
@@ -184,6 +185,12 @@ def bloco3_enviar(
             aviso("simulação — nada enviado")
             continue
 
+        # idempotência: sem reserva, sem POST. Se outra execução já enviou
+        # (ou está enviando), esta oferta é pulada — nunca duplica no grupo.
+        if not reservar_entrega(con, linha["mlb_id"]):
+            info(f"pulada {linha['mlb_id']}: entrega já reservada/concluída")
+            continue
+
         pausa = random.randint(*PAUSA_HUMANIZADA)
         info(f"pausa humanizada de {pausa}s")
         if not dormir(pausa):
@@ -196,6 +203,7 @@ def bloco3_enviar(
         try:
             msg_id = uazapi_enviar(texto, foto_para_envio(linha))
         except (HttpErro, RuntimeError) as e:
+            falhar_entrega(con, linha["mlb_id"], str(e))
             tentativas = (linha["tentativas"] or 0) + 1
             if tentativas >= ENVIO_TENTATIVAS:
                 erro(f"envio falhou {tentativas}x, desistindo ({linha['mlb_id']}): {e}")
@@ -227,6 +235,7 @@ def bloco3_enviar(
             (ts, ts, linha["mlb_id"]),
         )
         con.commit()
+        concluir_entrega(con, linha["mlb_id"], msg_id)
         enviadas += 1
         ok(f"enviada no grupo (id {msg_id})")
 
@@ -525,6 +534,7 @@ def cmd_rodar(args) -> int:
     signal.signal(signal.SIGINT, _sinal)
 
     con = abrir_banco()
+    reconciliar_entregas(con)      # crash anterior? resolve antes de operar
     ok(
         f"daemon no ar · fuso {TZ} · busca {BUSCA_HORAS}h · "
         f"envio {'adaptativo' if ENVIO_ADAPTATIVO else 'fixo'} · "

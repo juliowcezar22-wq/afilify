@@ -597,6 +597,18 @@ CREATE TABLE IF NOT EXISTS ofertas (
 CREATE INDEX IF NOT EXISTS idx_ofertas_status ON ofertas(status_envio);
 CREATE INDEX IF NOT EXISTS idx_ofertas_titulo ON ofertas(titulo_norm);
 CREATE TABLE IF NOT EXISTS estado (chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS entregas (
+    mlb_id        TEXT NOT NULL,
+    canal         TEXT NOT NULL,
+    perfil        TEXT NOT NULL DEFAULT 'perfumes-ml',
+    status        TEXT NOT NULL DEFAULT 'enviando',
+    tentativa     INTEGER NOT NULL DEFAULT 1,
+    id_externo    TEXT NOT NULL DEFAULT '',
+    erro          TEXT NOT NULL DEFAULT '',
+    criado_em     TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL,
+    PRIMARY KEY (mlb_id, canal)
+);
 """
 
 
@@ -685,6 +697,16 @@ def uazapi_grupos() -> list[dict]:
         UAZAPI_URL + "/group/list", headers={"token": UAZAPI_TOKEN}
     )
     return dados.get("groups") or []
+
+
+def mensagens_do_grupo(jid: str, limite: int = 20) -> list[dict]:
+    dados = requisitar_json(
+        UAZAPI_URL + "/message/find",
+        metodo="POST",
+        corpo=json.dumps({"chatid": jid, "limit": limite}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "token": UAZAPI_TOKEN},
+    )
+    return dados.get("messages") or []
 
 
 def uazapi_enviar(texto: str, imagem: str = "") -> str:
@@ -871,9 +893,9 @@ def salvar_oferta(con: sqlite3.Connection, o: Oferta) -> bool:
         INSERT INTO ofertas (mlb_id, nome, url, imagem, preco_original,
                              preco_promocional, desconto_pct, badge, condicao,
                              marca, familia, vendedor, loja, loja_oficial, avaliacao,
-                             perfil,
+                             perfil, link_afiliado,
                              vendidos, titulo_norm, criado_em, atualizado_em)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(mlb_id) DO UPDATE SET
             nome              = excluded.nome,
             url               = excluded.url,
@@ -891,12 +913,15 @@ def salvar_oferta(con: sqlite3.Connection, o: Oferta) -> bool:
             loja_oficial      = excluded.loja_oficial,
             avaliacao         = excluded.avaliacao,
             vendidos          = excluded.vendidos,
+            link_afiliado     = CASE WHEN excluded.link_afiliado != ''
+                                     THEN excluded.link_afiliado
+                                     ELSE ofertas.link_afiliado END,
             atualizado_em     = excluded.atualizado_em
         """,
         (o.mlb_id, o.nome, o.url, o.imagem, o.preco_original, o.preco_promocional,
          o.desconto_pct, o.badge, o.condicao, o.marca, familia_da_marca(o.marca),
          o.vendedor, o.loja,
-         int(o.loja_oficial), o.avaliacao, PERFIL_ATIVO,
+         int(o.loja_oficial), o.avaliacao, PERFIL_ATIVO, o.link_afiliado,
          o.vendidos, normalizar(o.nome), ts, ts),
     )
     return not ja_existe
@@ -993,3 +1018,108 @@ def montar_mensagem(linha: sqlite3.Row, con: sqlite3.Connection | None = None) -
         link=linha["link_afiliado"] or linha["url"],
     )
     return f"{texto}\n\n{RODAPE_MENSAGEM}" if RODAPE_MENSAGEM else texto
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ENTREGAS — idempotência de publicação (blueprint, Parte 8)
+# ══════════════════════════════════════════════════════════════════════
+# A regra: NENHUM POST sem antes reservar a entrega. A reserva é um INSERT
+# com chave (mlb_id, canal); quem não conseguiu inserir não envia. Crash
+# entre o POST e o registro deixa a entrega em 'enviando' — a reconciliação
+# olha as últimas mensagens do grupo: o link de afiliado é único, então ou
+# a mensagem está lá (sela como enviada) ou não está (libera para reenvio).
+
+RECONCILIAR_APOS_MIN = 10
+
+
+def reservar_entrega(con, mlb_id: str, canal: str = "") -> bool:
+    """True = esta execução é dona do envio. False = já feito/em curso."""
+    canal = canal or UAZAPI_GRUPO
+    ts = agora().isoformat(timespec="seconds")
+    cur = con.execute(
+        "INSERT INTO entregas (mlb_id, canal, perfil, status, criado_em, atualizado_em) "
+        "VALUES (?, ?, ?, 'enviando', ?, ?) "
+        "ON CONFLICT (mlb_id, canal) DO NOTHING",
+        (mlb_id, canal, PERFIL_ATIVO, ts, ts),
+    )
+    if cur.rowcount:
+        con.commit()
+        return True
+
+    linha = con.execute(
+        "SELECT status FROM entregas WHERE mlb_id = ? AND canal = ?",
+        (mlb_id, canal),
+    ).fetchone()
+    if linha and linha["status"] == "falhou":
+        # falha anterior: reutiliza a reserva para o retry
+        con.execute(
+            "UPDATE entregas SET status='enviando', tentativa = tentativa + 1, "
+            "atualizado_em = ? WHERE mlb_id = ? AND canal = ?",
+            (ts, mlb_id, canal),
+        )
+        con.commit()
+        return True
+    return False        # 'enviada' ou 'enviando' de outra execução
+
+
+def concluir_entrega(con, mlb_id: str, id_externo: str, canal: str = "") -> None:
+    con.execute(
+        "UPDATE entregas SET status='enviada', id_externo=?, atualizado_em=? "
+        "WHERE mlb_id = ? AND canal = ?",
+        (id_externo, agora().isoformat(timespec="seconds"), mlb_id, canal or UAZAPI_GRUPO),
+    )
+    con.commit()
+
+
+def falhar_entrega(con, mlb_id: str, erro_txt: str, canal: str = "") -> None:
+    con.execute(
+        "UPDATE entregas SET status='falhou', erro=?, atualizado_em=? "
+        "WHERE mlb_id = ? AND canal = ?",
+        (erro_txt[:300], agora().isoformat(timespec="seconds"),
+         mlb_id, canal or UAZAPI_GRUPO),
+    )
+    con.commit()
+
+
+def reconciliar_entregas(con, buscar=mensagens_do_grupo) -> int:
+    """Resolve entregas presas em 'enviando' (crash no meio do POST).
+
+    Devolve quantas foram resolvidas. `buscar` é injetável para teste.
+    """
+    corte = (agora() - timedelta(minutes=RECONCILIAR_APOS_MIN)).isoformat(
+        timespec="seconds")
+    presas = con.execute(
+        "SELECT e.mlb_id, e.canal, o.link_afiliado FROM entregas e "
+        "JOIN ofertas o ON o.mlb_id = e.mlb_id "
+        "WHERE e.status='enviando' AND e.atualizado_em < ? AND e.perfil = ?",
+        (corte, PERFIL_ATIVO),
+    ).fetchall()
+    if not presas:
+        return 0
+
+    resolvidas = 0
+    por_canal: dict[str, list[str]] = {}
+    for p in presas:
+        if p["canal"] not in por_canal:
+            try:
+                msgs = buscar(p["canal"], 50)
+            except (HttpErro, RuntimeError):
+                continue            # sem rede: tenta na próxima
+            por_canal[p["canal"]] = [m.get("text") or "" for m in msgs]
+        textos = por_canal[p["canal"]]
+        ts = agora().isoformat(timespec="seconds")
+        if p["link_afiliado"] and any(p["link_afiliado"] in t for t in textos):
+            # a mensagem CHEGOU ao grupo antes do crash: sela tudo
+            con.execute("UPDATE entregas SET status='enviada', atualizado_em=? "
+                        "WHERE mlb_id=? AND canal=?", (ts, p["mlb_id"], p["canal"]))
+            con.execute("UPDATE ofertas SET status_envio='ENVIADO', enviado_em=?, "
+                        "atualizado_em=? WHERE mlb_id=?", (ts, ts, p["mlb_id"]))
+            ok(f"entrega recuperada pós-crash: {p['mlb_id']} já estava no grupo")
+        else:
+            # não chegou: libera a reserva, a oferta volta à fila normalmente
+            con.execute("DELETE FROM entregas WHERE mlb_id=? AND canal=?",
+                        (p["mlb_id"], p["canal"]))
+            aviso(f"entrega presa liberada para reenvio: {p['mlb_id']}")
+        resolvidas += 1
+    con.commit()
+    return resolvidas

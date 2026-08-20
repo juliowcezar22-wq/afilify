@@ -60,6 +60,14 @@ class Dedup(unittest.TestCase):
         p = self.con.execute("SELECT perfil FROM ofertas").fetchone()["perfil"]
         self.assertEqual(p, comum.PERFIL_ATIVO)
 
+    def test_link_afiliado_persiste_e_nunca_e_apagado(self):
+        # Shopee entrega o link pronto na captura; recoleta do ML vem sem
+        # link e NÃO pode apagar o meli.la já gerado (bug pego em 20/08)
+        salvar_oferta(self.con, oferta(link_afiliado="https://meli.la/abc"))
+        salvar_oferta(self.con, oferta(link_afiliado="", preco_promocional=99.0))
+        r = self.con.execute("SELECT link_afiliado FROM ofertas").fetchone()
+        self.assertEqual(r["link_afiliado"], "https://meli.la/abc")
+
     def test_estado_prefixado_por_perfil(self):
         comum.gravar_estado(self.con, "chave_teste", "valor")
         bruto = self.con.execute(
