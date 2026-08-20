@@ -14,6 +14,7 @@ export type Linha = Record<string, unknown>;
 
 interface Banco {
   todas(sql: string, params?: unknown[]): Promise<Linha[]>;
+  executar(sql: string, params?: unknown[]): Promise<number>;  // linhas afetadas
   motor: "sqlite" | "postgres";
 }
 
@@ -29,6 +30,7 @@ function abrirSqlite(caminho: string): Banco {
   return {
     motor: "sqlite",
     async todas(sql, params = []) { return db.prepare(sql).all(...params) as Linha[]; },
+    async executar(sql, params = []) { return db.prepare(sql).run(...params).changes; },
   };
 }
 
@@ -42,6 +44,12 @@ function abrirPostgres(url: string): Banco {
       let i = 0;
       const traduzido = texto.replace(/\?/g, () => `$${++i}`);
       return (await sql.unsafe(traduzido, params as never[])) as unknown as Linha[];
+    },
+    async executar(texto, params = []) {
+      let i = 0;
+      const traduzido = texto.replace(/\?/g, () => `$${++i}`);
+      const r = await sql.unsafe(traduzido, params as never[]);
+      return (r as unknown as { count?: number }).count ?? 0;
     },
   };
 }
@@ -64,4 +72,11 @@ export async function todas(sql: string, params?: unknown[]): Promise<Linha[]> {
   const b = obterBanco();
   if (!b) return [];
   return b.todas(sql, params);
+}
+
+
+export async function executar(sql: string, params?: unknown[]): Promise<number> {
+  const b = obterBanco();
+  if (!b) throw new Error("banco não configurado");
+  return b.executar(sql, params);
 }

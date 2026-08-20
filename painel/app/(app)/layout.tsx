@@ -4,7 +4,7 @@ import Link from "next/link";
    desabilitados — o mapa do produto aparece desde o dia 1. */
 const MENU: Array<[string, string, boolean]> = [
   ["Dashboard", "/", true],
-  ["Ofertas", "/ofertas", false],
+  ["Ofertas", "/ofertas", true],
   ["Fila de publicação", "/fila", false],
   ["Grupos & canais", "/canais", false],
   ["Copiador", "/copiador", false],
