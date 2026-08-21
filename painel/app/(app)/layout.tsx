@@ -6,7 +6,7 @@ const MENU: Array<[string, string, boolean]> = [
   ["Dashboard", "/", true],
   ["Ofertas", "/ofertas", true],
   ["Fila de publicação", "/fila", true],
-  ["Grupos & canais", "/canais", false],
+  ["Grupos & canais", "/canais", true],
   ["Copiador", "/copiador", true],
   ["Templates", "/templates", true],
   ["Conexões", "/conexoes", true],

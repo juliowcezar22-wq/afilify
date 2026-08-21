@@ -61,6 +61,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "janela entre 10 e 720 minutos" }, { status: 400 });
   }
 
+  if (chave === "canal") {
+    if (typeof valor?.grupo !== "string" || !/^[0-9]+@g\.us$/.test(valor.grupo))
+      return NextResponse.json({ erro: "destino: JID de grupo terminando em @g.us" }, { status: 400 });
+  }
+
   await executar(
     "INSERT INTO config (perfil, chave, valor, atualizado_em) VALUES (?, ?, ?, ?) " +
     "ON CONFLICT (perfil, chave) DO UPDATE SET valor = excluded.valor, atualizado_em = excluded.atualizado_em",

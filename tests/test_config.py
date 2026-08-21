@@ -58,7 +58,7 @@ class Config(unittest.TestCase):
             self.assertEqual(sortear_headline(self.con, linha_fake()), "SÓ ESTA")
 
     def test_seed_grava_uma_vez_e_respeita_edicao(self):
-        self.assertEqual(garantir_config(self.con), 4)   # headlines+mensagem+ritmo+clonador
+        self.assertEqual(garantir_config(self.con), 5)   # +canal
         self.assertEqual(garantir_config(self.con), 0)   # idempotente
         gravar_config(self.con, "headlines", {"geral": ["EDITADA"]})
         self.assertEqual(garantir_config(self.con), 0)   # seed NUNCA sobrescreve
@@ -96,6 +96,24 @@ class Clonador(unittest.TestCase):
     def test_adicionar_rival_pelo_painel(self):
         gravar_config(self.con, "clonador", {"grupos": ["a@g.us", "b@g.us"]})
         self.assertEqual(len(comum.clonador_cfg(self.con)["grupos"]), 2)
+
+
+class Canal(unittest.TestCase):
+    def setUp(self):
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
+        self.con = abrir_banco()
+        self.con.execute("DELETE FROM config"); self.con.commit()
+
+    def tearDown(self):
+        self.con.close()
+
+    def test_padrao_e_o_grupo_do_perfil(self):
+        self.assertEqual(comum.canal_cfg(self.con)["grupo"], comum.UAZAPI_GRUPO)
+
+    def test_trocar_destino_pelo_painel(self):
+        gravar_config(self.con, "canal", {"grupo": "999@g.us"})
+        self.assertEqual(comum.canal_cfg(self.con)["grupo"], "999@g.us")
 
 
 class Ritmo(unittest.TestCase):

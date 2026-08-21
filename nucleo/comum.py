@@ -726,18 +726,26 @@ def mensagens_do_grupo(jid: str, limite: int = 20) -> list[dict]:
     return dados.get("messages") or []
 
 
-def uazapi_enviar(texto: str, imagem: str = "") -> str:
+def canal_cfg(con) -> dict:
+    """Destino da publicação: config do painel por cima do perfil/env."""
+    cfg = config_json(con, "canal", {})
+    return {"grupo": cfg.get("grupo") or UAZAPI_GRUPO}
+
+
+def uazapi_enviar(texto: str, imagem: str = "", numero: str = "") -> str:
     headers = {"Content-Type": "application/json", "token": UAZAPI_TOKEN}
     if imagem:
+        destino = numero or UAZAPI_GRUPO
         rota, corpo = "/send/media", {
-            "number": UAZAPI_GRUPO,
+            "number": destino,
             "type": "image",
             "file": imagem,
             "text": texto,
         }
     else:
         # o seu fluxo sempre manda imagem; isto só entra se a oferta vier sem
-        rota, corpo = "/send/text", {"number": UAZAPI_GRUPO, "text": texto}
+        destino = numero or UAZAPI_GRUPO
+        rota, corpo = "/send/text", {"number": destino, "text": texto}
 
     resposta = requisitar_json(
         UAZAPI_URL + rota,
@@ -1129,6 +1137,7 @@ def garantir_config(con) -> int:
             "linha_loja_oficial": LINHA_LOJA_OFICIAL,
             "rodape": RODAPE_MENSAGEM,
         },
+        "canal": {"grupo": UAZAPI_GRUPO},
         "clonador": {
             "ativo": PERFIL.clone_ativo,
             "grupos": list(PERFIL.clone_grupos),

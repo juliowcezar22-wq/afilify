@@ -167,6 +167,7 @@ def bloco3_enviar(
         limite = min(limite, plano["cota"] - ja) if limite else plano["cota"] - ja
 
     reconciliar_entregas(con)
+    destino = canal_cfg(con)["grupo"]
     fila = fila_de_envio(con, limite)
     if not fila:
         info("BLOCO 3 — nenhuma oferta pendente com link pronto")
@@ -189,7 +190,7 @@ def bloco3_enviar(
 
         # idempotência: sem reserva, sem POST. Se outra execução já enviou
         # (ou está enviando), esta oferta é pulada — nunca duplica no grupo.
-        if not reservar_entrega(con, linha["mlb_id"]):
+        if not reservar_entrega(con, linha["mlb_id"], destino):
             info(f"pulada {linha['mlb_id']}: entrega já reservada/concluída")
             continue
 
@@ -203,9 +204,9 @@ def bloco3_enviar(
 
         ts = agora().isoformat(timespec="seconds")
         try:
-            msg_id = uazapi_enviar(texto, foto_para_envio(linha))
+            msg_id = uazapi_enviar(texto, foto_para_envio(linha), destino)
         except (HttpErro, RuntimeError) as e:
-            falhar_entrega(con, linha["mlb_id"], str(e))
+            falhar_entrega(con, linha["mlb_id"], str(e), destino)
             tentativas = (linha["tentativas"] or 0) + 1
             if tentativas >= ENVIO_TENTATIVAS:
                 erro(f"envio falhou {tentativas}x, desistindo ({linha['mlb_id']}): {e}")
@@ -238,7 +239,7 @@ def bloco3_enviar(
             (ts, ts, linha["mlb_id"]),
         )
         con.commit()
-        concluir_entrega(con, linha["mlb_id"], msg_id)
+        concluir_entrega(con, linha["mlb_id"], msg_id, destino)
         enviadas += 1
         ok(f"enviada no grupo (id {msg_id})")
 

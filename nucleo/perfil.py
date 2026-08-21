@@ -81,14 +81,32 @@ def listar() -> list[Perfil]:
     return [carregar(n) for n in nomes]
 
 
+def _canal_no_banco(nome: str) -> str:
+    """Destino salvo pelo painel (config "canal") — permite ligar um perfil
+    sem GRUPO_WHATSAPP no arquivo: basta escolher o grupo em /canais."""
+    import json, sqlite3
+    caminho = os.environ.get("ML_BANCO", "dados/ofertas.db")
+    if not os.path.exists(caminho):
+        return ""
+    try:
+        con = sqlite3.connect(caminho, timeout=5)
+        linha = con.execute(
+            "SELECT valor FROM config WHERE perfil=? AND chave='canal'", (nome,)
+        ).fetchone()
+        con.close()
+        return (json.loads(linha[0]).get("grupo") or "") if linha else ""
+    except Exception:
+        return ""
+
+
 def escolher_para_rodar(perfis: list[Perfil]) -> tuple[list[Perfil], list[tuple[str, str]]]:
     """(rodáveis, pulados_com_motivo). O runner decide o resto (locks)."""
     rodar, pulados = [], []
     for p in perfis:
         if not p.ativo:
             pulados.append((p.nome, "ATIVO=False"))
-        elif not p.grupo_whatsapp:
-            pulados.append((p.nome, "sem GRUPO_WHATSAPP definido"))
+        elif not p.grupo_whatsapp and not _canal_no_banco(p.nome):
+            pulados.append((p.nome, "sem grupo: defina GRUPO_WHATSAPP ou escolha em /canais"))
         else:
             rodar.append(p)
     return rodar, pulados
