@@ -1,11 +1,14 @@
 import { todas } from "@/lib/dados";
 import { FormRitmo } from "./form";
+import { FormTracking } from "./tracking";
 
 export const dynamic = "force-dynamic";
 
 export default async function Config() {
   const linhas = await todas(
     "SELECT perfil, valor FROM config WHERE chave = 'ritmo' ORDER BY perfil");
+  const tracking = await todas(
+    "SELECT perfil, valor FROM config WHERE chave = 'tracking' ORDER BY perfil");
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="text-xl font-semibold">Configurações do ritmo</h1>
@@ -23,6 +26,11 @@ export default async function Config() {
           return <FormRitmo key={String(l.perfil)} perfil={String(l.perfil)} inicial={cfg} />;
         })
       )}
+      {tracking.map((l) => {
+        let cfg = {};
+        try { cfg = JSON.parse(String(l.valor)); } catch {}
+        return <FormTracking key={String(l.perfil)} perfil={String(l.perfil)} inicial={cfg} />;
+      })}
     </div>
   );
 }

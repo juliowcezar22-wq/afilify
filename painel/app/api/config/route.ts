@@ -61,6 +61,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "janela entre 10 e 720 minutos" }, { status: 400 });
   }
 
+  if (chave === "tracking") {
+    if (typeof valor?.ativo !== "boolean")
+      return NextResponse.json({ erro: "tracking: ativo deve ser true/false" }, { status: 400 });
+    if (valor.ativo && !/^https?:\/\/[^\s]+$/.test(valor.base ?? ""))
+      return NextResponse.json({ erro: "tracking ligado exige base https://…" }, { status: 400 });
+  }
+
   if (chave === "canal") {
     if (typeof valor?.grupo !== "string" || !/^[0-9]+@g\.us$/.test(valor.grupo))
       return NextResponse.json({ erro: "destino: JID de grupo terminando em @g.us" }, { status: 400 });

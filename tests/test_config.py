@@ -58,7 +58,7 @@ class Config(unittest.TestCase):
             self.assertEqual(sortear_headline(self.con, linha_fake()), "SÓ ESTA")
 
     def test_seed_grava_uma_vez_e_respeita_edicao(self):
-        self.assertEqual(garantir_config(self.con), 5)   # +canal
+        self.assertEqual(garantir_config(self.con), 6)   # +canal +tracking
         self.assertEqual(garantir_config(self.con), 0)   # idempotente
         gravar_config(self.con, "headlines", {"geral": ["EDITADA"]})
         self.assertEqual(garantir_config(self.con), 0)   # seed NUNCA sobrescreve
@@ -114,6 +114,34 @@ class Canal(unittest.TestCase):
     def test_trocar_destino_pelo_painel(self):
         gravar_config(self.con, "canal", {"grupo": "999@g.us"})
         self.assertEqual(comum.canal_cfg(self.con)["grupo"], "999@g.us")
+
+
+class Tracking(unittest.TestCase):
+    def setUp(self):
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
+        self.con = abrir_banco()
+        self.con.execute("DELETE FROM config"); self.con.execute("DELETE FROM ofertas")
+        self.con.commit()
+        comum.salvar_oferta(self.con, comum.Oferta(
+            mlb_id="MLB1", nome="Perfume X", url="https://p.ml/x",
+            preco_original=200, preco_promocional=100, link_afiliado="https://meli.la/abc"))
+        self.linha = self.con.execute("SELECT * FROM ofertas WHERE mlb_id='MLB1'").fetchone()
+
+    def tearDown(self):
+        self.con.close()
+
+    def test_desligado_usa_link_direto(self):
+        self.assertEqual(comum.link_da_mensagem(self.con, self.linha),
+                         "https://meli.la/abc")
+
+    def test_ligado_embrulha_e_codigo_e_estavel(self):
+        gravar_config(self.con, "tracking",
+                      {"ativo": True, "base": "https://afilify.com.br/"})
+        um = comum.link_da_mensagem(self.con, self.linha)
+        self.assertRegex(um, r"^https://afilify\.com\.br/r/[a-z0-9]{6}$")
+        linha2 = self.con.execute("SELECT * FROM ofertas WHERE mlb_id='MLB1'").fetchone()
+        self.assertEqual(comum.link_da_mensagem(self.con, linha2), um)
 
 
 class Ritmo(unittest.TestCase):

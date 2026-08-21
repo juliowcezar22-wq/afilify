@@ -22,10 +22,27 @@ sql = (f"INSERT INTO ofertas ({', '.join(colunas)}) VALUES ({marcadores}) "
 n = 0
 for r in sq.execute("SELECT * FROM ofertas"):
     pg.execute(sql, tuple(r[c] for c in colunas)); n += 1
-for r in sq.execute("SELECT * FROM estado"):
-    pg.execute("INSERT INTO estado (chave, valor) VALUES (?, ?) "
-               "ON CONFLICT (chave) DO UPDATE SET valor=excluded.valor",
-               (r["chave"], r["valor"]))
+def upsert(tabela, pk):
+    """Copia a tabela inteira com UPSERT pela PK composta."""
+    cols = [c["name"] for c in sq.execute(f"PRAGMA table_info({tabela})")]
+    marc = ", ".join("?" * len(cols))
+    att = ", ".join(f"{c}=excluded.{c}" for c in cols if c not in pk)
+    sql = (f"INSERT INTO {tabela} ({', '.join(cols)}) VALUES ({marc}) "
+           f"ON CONFLICT ({', '.join(pk)}) DO UPDATE SET {att}")
+    q = 0
+    for r in sq.execute(f"SELECT * FROM {tabela}"):
+        pg.execute(sql, tuple(r[c] for c in cols)); q += 1
+    print(f"  {tabela}: {q} linha(s)")
+
+upsert("estado", ["chave"])
+upsert("entregas", ["mlb_id", "canal"])
+upsert("config", ["perfil", "chave"])
+
+# cliques não tem chave natural: copia só se o destino estiver vazio
+if pg.execute("SELECT COUNT(*) AS n FROM cliques").fetchone()["n"] == 0:
+    for r in sq.execute("SELECT codigo, quando, agente FROM cliques"):
+        pg.execute("INSERT INTO cliques (codigo, quando, agente) VALUES (?,?,?)",
+                   (r["codigo"], r["quando"], r["agente"]))
 pg.commit()
 tot = pg.execute("SELECT COUNT(*) AS n FROM ofertas").fetchone()["n"]
 print(f"importadas {n} ofertas do SQLite · Postgres agora tem {tot}")

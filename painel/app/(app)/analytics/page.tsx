@@ -59,6 +59,13 @@ export default async function Analytics() {
              AND enviado_em >= ?`, [corte]),
   ]);
 
+  let cliques = 0;
+  try {
+    const c = await todas(
+      "SELECT COUNT(*) n FROM cliques WHERE quando >= ?", [corte]);
+    cliques = Number(c[0]?.n ?? 0);
+  } catch {} // tabela ainda não migrada neste engine
+
   const k = kpis[0] ?? {};
   const total = Number(k.total ?? 0);
   const clones = Number(origem.find((o) => o.origem === "clone")?.n ?? 0);
@@ -68,6 +75,7 @@ export default async function Analytics() {
     ["vindas do copiador", total ? `${Math.round((clones / total) * 100)}%` : "—"],
     ["desconto médio", k.desc_medio ? `${k.desc_medio}%` : "—"],
     ["ticket médio", k.ticket ? `R$ ${Number(k.ticket).toFixed(2)}` : "—"],
+    ["cliques rastreados", cliques ? fmt(cliques) : "—"],
   ];
 
   return (
@@ -75,7 +83,7 @@ export default async function Analytics() {
       <h1 className="text-xl font-semibold">Analytics</h1>
       <p className="mt-1 text-sm text-tinta2">Últimos 14 dias de publicação.</p>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6">
         {cards.map(([r, v]) => (
           <div key={r} className="rounded-xl border border-linha bg-carta p-4">
             <p className="text-[11px] uppercase tracking-wider text-tinta2">{r}</p>

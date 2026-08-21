@@ -625,6 +625,14 @@ CREATE TABLE IF NOT EXISTS entregas (
     atualizado_em TEXT NOT NULL,
     PRIMARY KEY (mlb_id, canal)
 );
+
+CREATE TABLE IF NOT EXISTS cliques (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL,
+    quando TEXT NOT NULL,
+    agente TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_cliques_codigo ON cliques(codigo);
 """
 
 
@@ -642,6 +650,7 @@ COLUNAS_NOVAS = {
     "preco_enviado": "REAL",
     "vendedor": "TEXT NOT NULL DEFAULT ''",
     "loja": "TEXT NOT NULL DEFAULT ''",
+    "codigo": "TEXT NOT NULL DEFAULT ''",
     "loja_oficial": "INTEGER NOT NULL DEFAULT 0",
     "tentativas": "INTEGER NOT NULL DEFAULT 0",
     "proxima_tentativa": "TEXT",
@@ -724,6 +733,40 @@ def mensagens_do_grupo(jid: str, limite: int = 20) -> list[dict]:
         headers={"Content-Type": "application/json", "token": UAZAPI_TOKEN},
     )
     return dados.get("messages") or []
+
+
+def tracking_cfg(con) -> dict:
+    """Tracking de cliques: desligado até existir domínio público."""
+    cfg = config_json(con, "tracking", {})
+    return {"ativo": bool(cfg.get("ativo")), "base": (cfg.get("base") or "").rstrip("/")}
+
+
+def codigo_da_oferta(con, linha) -> str:
+    """Código curto e estável por oferta (gera e persiste no 1º uso)."""
+    atual = linha["codigo"] if "codigo" in linha.keys() else ""
+    if atual:
+        return atual
+    import secrets, string
+    alfabeto = string.ascii_lowercase + string.digits
+    for _ in range(20):
+        c = "".join(secrets.choice(alfabeto) for _ in range(6))
+        if not con.execute("SELECT 1 FROM ofertas WHERE codigo=?", (c,)).fetchone():
+            con.execute("UPDATE ofertas SET codigo=? WHERE mlb_id=?",
+                        (c, linha["mlb_id"]))
+            con.commit()
+            return c
+    raise RuntimeError("não achei código livre em 20 sorteios")
+
+
+def link_da_mensagem(con, linha) -> str:
+    """Afiliado direto — ou {base}/r/{codigo} quando o tracking está ligado."""
+    direto = linha["link_afiliado"] or linha["url"]
+    if con is None:
+        return direto
+    t = tracking_cfg(con)
+    if not (t["ativo"] and t["base"]):
+        return direto
+    return f"{t['base']}/r/{codigo_da_oferta(con, linha)}"
 
 
 def canal_cfg(con) -> dict:
@@ -1066,7 +1109,7 @@ def montar_mensagem(linha: sqlite3.Row, con: sqlite3.Connection | None = None) -
         preco_original=reais(linha["preco_original"]),
         preco_promocional=promocional,
         linha_loja=linha_da_loja(linha, con),
-        link=linha["link_afiliado"] or linha["url"],
+        link=link_da_mensagem(con, linha),
     )
     return f"{texto}\n\n{rodape}" if rodape else texto
 
@@ -1138,6 +1181,7 @@ def garantir_config(con) -> int:
             "rodape": RODAPE_MENSAGEM,
         },
         "canal": {"grupo": UAZAPI_GRUPO},
+        "tracking": {"ativo": False, "base": ""},
         "clonador": {
             "ativo": PERFIL.clone_ativo,
             "grupos": list(PERFIL.clone_grupos),
