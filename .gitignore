@@ -13,3 +13,6 @@ dados/
 __pycache__/
 *.pyc
 .DS_Store
+
+# segredos do deploy — nunca versionar
+SEGREDOS-EASYPANEL.txt
