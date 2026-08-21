@@ -10,7 +10,7 @@ const MENU: Array<[string, string, boolean]> = [
   ["Copiador", "/copiador", true],
   ["Templates", "/templates", true],
   ["Conexões", "/conexoes", true],
-  ["Analytics", "/analytics", false],
+  ["Analytics", "/analytics", true],
   ["Logs", "/logs", true],
   ["Configurações", "/config", true],
 ];
