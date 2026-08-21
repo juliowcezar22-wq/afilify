@@ -940,7 +940,8 @@ def gerar_links(urls: list[str]) -> dict[str, str]:
 def bloco2_links(con: sqlite3.Connection, lote: int = 20) -> int:
     pendentes = con.execute(
         "SELECT mlb_id, url FROM ofertas "
-        "WHERE link_afiliado = '' AND status_envio != 'ENVIADO'"
+        "WHERE link_afiliado = '' AND status_envio != 'ENVIADO' "
+        "AND mlb_id LIKE 'MLB%'"  # Shopee chega com offerLink pronto
     ).fetchall()
     if not pendentes:
         return 0

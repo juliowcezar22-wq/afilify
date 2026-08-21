@@ -530,6 +530,18 @@ def sementear_estado(con: sqlite3.Connection, momento: datetime) -> None:
         agendar_proximo_envio(con, momento)
 
 
+def coletar(con, paginas) -> None:
+    """BLOCO 1 em todos os marketplaces do perfil ativo."""
+    bloco1_buscar(con, paginas)
+    from nucleo import perfil as _perfil
+    if "shopee" in _perfil.ativo().marketplaces:
+        try:
+            from shopee.buscador import buscar as shopee_buscar
+            shopee_buscar(con)
+        except Exception as e:  # Shopee fora do ar não pode parar o ML
+            erro(f"shopee: {type(e).__name__}: {e}")
+
+
 def cmd_rodar(args) -> int:
     try:
         trava = Trava().__enter__()
@@ -556,7 +568,7 @@ def cmd_rodar(args) -> int:
     if args.agora:
         info("--agora: um ciclo completo antes de entrar no horário")
         try:
-            bloco1_buscar(con, args.paginas)
+            coletar(con, args.paginas)
             bloco2_links(con)
             bloco3_enviar(con, seco=args.seco, forcar=True)
         except Exception as e:  # o daemon não pode morrer por um ciclo ruim
@@ -573,7 +585,7 @@ def cmd_rodar(args) -> int:
                 con.commit()
                 if n:
                     info(f"{n} pendente(s) vencida(s) removida(s) da fila")
-                bloco1_buscar(con, args.paginas)
+                coletar(con, args.paginas)
                 bloco2_links(con)
 
             if not _parar and clonador_cfg(con)["ativo"] and hora_de_clonar(con, momento):
