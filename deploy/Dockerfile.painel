@@ -3,6 +3,8 @@
 #   docker save afilify-painel | ssh vps docker load
 FROM node:22-alpine AS build
 WORKDIR /app
+# better-sqlite3 compila módulo nativo no install — alpine não traz toolchain
+RUN apk add --no-cache python3 make g++
 RUN corepack enable
 COPY painel/package.json painel/pnpm-lock.yaml painel/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
