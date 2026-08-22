@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "ativo deve ser true/false" }, { status: 400 });
     if (!Array.isArray(v.grupos) || v.grupos.some((g: unknown) =>
         typeof g !== "string" || !/^[0-9]+@g\.us$/.test(g)))
-      return NextResponse.json({ erro: "grupos: lista de JIDs terminando em @g.us" }, { status: 400 });
+      return NextResponse.json({ erro: "grupos inválidos — selecione grupos da sua conta" }, { status: 400 });
     if (typeof v.intervalo_seg !== "number" || v.intervalo_seg < 60)
       return NextResponse.json({ erro: "intervalo mínimo: 60s" }, { status: 400 });
     if (typeof v.janela_min !== "number" || v.janela_min < 10 || v.janela_min > 720)
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
 
   if (chave === "canal") {
     if (typeof valor?.grupo !== "string" || !/^[0-9]+@g\.us$/.test(valor.grupo))
-      return NextResponse.json({ erro: "destino: JID de grupo terminando em @g.us" }, { status: 400 });
+      return NextResponse.json({ erro: "destino inválido — escolha um grupo da sua conta" }, { status: 400 });
   }
 
   await executar(

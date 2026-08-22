@@ -1,62 +1,96 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { todas } from "@/lib/dados";
+import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { CONTROLE } from "@/components/ui/campos";
 
 export const dynamic = "force-dynamic";
 
 const COR: Record<string, string> = {
-  "✓": "text-ok", "✗": "text-erro", "!": "text-alerta",
+  "✓": "text-ok",
+  "✗": "text-erro",
+  "!": "text-alerta",
 };
 
-/* O motor espelha cada linha na tabela `logs` — funciona com motor e
-   painel em máquinas diferentes. Sem linhas no banco (motor antigo),
-   cai no arquivo local LOG_PATH. */
-export default async function Logs({ searchParams }:
-  { searchParams: Promise<{ q?: string }> }) {
+/**
+ * Página TÉCNICA (suporte/desenvolvimento) — fora da navegação comum do
+ * produto; erros relevantes ao usuário aparecem contextualizados nas
+ * próprias páginas (Publicações, Conexões, Fontes).
+ * Fonte: tabela de registros do banco; sem linhas, cai no arquivo local
+ * apontado pelo ambiente. // harness-ok
+ */
+export default async function Logs({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const { q } = await searchParams;
 
   let doBanco: Array<{ ts: string; nivel: string; texto: string }> = [];
   try {
     doBanco = (await todas(
-      q ? `SELECT ts, nivel, texto FROM logs WHERE texto LIKE ? ORDER BY id DESC LIMIT 300`
+      q
+        ? `SELECT ts, nivel, texto FROM logs WHERE texto LIKE ? ORDER BY id DESC LIMIT 300`
         : `SELECT ts, nivel, texto FROM logs ORDER BY id DESC LIMIT 300`,
       q ? [`%${q}%`] : [],
     )) as never[];
-  } catch { /* tabela ainda não migrada */ }
+  } catch {
+    /* tabela ainda não migrada */
+  }
 
   let doArquivo: string[] = [];
   if (doBanco.length === 0 && process.env.LOG_PATH) {
     try {
       const bruto = await readFile(path.resolve(process.cwd(), process.env.LOG_PATH), "utf-8");
-      doArquivo = bruto.split("\n")
+      doArquivo = bruto
+        .split("\n")
         .map((l) => l.replace(/\x1b\[[0-9;]*m/g, ""))
         .filter((l) => l.trim())
         .filter((l) => !q || l.toLowerCase().includes(q.toLowerCase()))
-        .slice(-300).reverse();
-    } catch { /* arquivo indisponível */ }
+        .slice(-300)
+        .reverse();
+    } catch {
+      /* arquivo indisponível */
+    }
   }
   const total = doBanco.length || doArquivo.length;
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Logs do motor</h1>
-          <p className="mt-1 text-sm text-tinta2">
-            últimas {total} linhas · mais recentes primeiro
-            {doBanco.length > 0 ? " · direto do banco" : ""}
-          </p>
-        </div>
-        <form action="/logs">
-          <input name="q" defaultValue={q ?? ""} placeholder="filtrar (ex.: enviada, clonado, ✗)…"
-            className="w-72 rounded-lg border border-linha bg-carta2 px-3 py-1.5 text-sm outline-none focus:border-acento" />
-        </form>
-      </div>
+      <CabecalhoPagina
+        titulo="Registro técnico"
+        descricao="Página de suporte e desenvolvimento — as últimas linhas do registro da automação."
+        acoes={
+          <form action="/logs">
+            <label htmlFor="filtro-logs" className="sr-only">
+              Filtrar registro
+            </label>
+            <input
+              id="filtro-logs"
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="Filtrar…"
+              className={`${CONTROLE} w-56 md:w-72`}
+            />
+          </form>
+        }
+      />
+      <p className="mt-2 rounded-lg border border-alerta/30 bg-alerta/10 px-3 py-2 text-xs text-alerta">
+        Conteúdo técnico, no formato bruto da automação. Problemas que pedem a
+        sua ação aparecem traduzidos nas páginas do produto.
+      </p>
 
       {total === 0 ? (
-        <div className="mt-8 rounded-xl border border-linha bg-carta p-6 text-sm text-tinta2">
-          Nenhuma linha ainda{q ? " com esse filtro" : ""} — o motor grava aqui
-          a partir da primeira subida com o espelhamento ligado.
+        <div className="mt-6">
+          <EstadoVazio
+            titulo={q ? "Nada encontrado com esse filtro" : "Nenhum registro ainda"}
+            descricao={
+              q
+                ? "Tente outro termo."
+                : "Os registros aparecem aqui a partir da primeira execução da automação."
+            }
+          />
         </div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-linha bg-carta">
@@ -65,14 +99,19 @@ export default async function Logs({ searchParams }:
               {doBanco.map((l, i) => (
                 <tr key={i} className="border-b border-linha/50 last:border-0">
                   <td className="whitespace-nowrap px-4 py-1.5 font-mono text-xs text-tinta2">
-                    {String(l.ts).slice(5, 16).replace("T", " ")}</td>
-                  <td className={`px-2 py-1.5 font-mono ${COR[l.nivel] ?? "text-tinta2"}`}>{l.nivel}</td>
+                    {String(l.ts).slice(5, 16).replace("T", " ")}
+                  </td>
+                  <td className={`px-2 py-1.5 font-mono ${COR[l.nivel] ?? "text-tinta2"}`}>
+                    {l.nivel}
+                  </td>
                   <td className="px-2 py-1.5">{l.texto}</td>
                 </tr>
               ))}
               {doArquivo.map((l, i) => (
                 <tr key={i} className="border-b border-linha/50 last:border-0">
-                  <td className="px-4 py-1.5 font-mono text-xs" colSpan={3}>{l}</td>
+                  <td className="px-4 py-1.5 font-mono text-xs" colSpan={3}>
+                    {l}
+                  </td>
                 </tr>
               ))}
             </tbody>
