@@ -47,6 +47,8 @@ class LinhaCompat(dict):
 
 
 def _fabrica_linha(cursor):
+    if cursor.description is None:      # DDL/INSERT não devolve linhas
+        return lambda valores: valores
     colunas = [d.name for d in cursor.description]
     def montar(valores):
         return LinhaCompat(zip(colunas, valores))
