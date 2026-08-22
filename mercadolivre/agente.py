@@ -553,6 +553,7 @@ def cmd_rodar(args) -> int:
     signal.signal(signal.SIGINT, _sinal)
 
     con = abrir_banco()
+    registrar_logs_no_banco()      # página Logs do painel lê do banco
     reconciliar_entregas(con)      # crash anterior? resolve antes de operar
     semeadas = garantir_config(con)
     if semeadas:

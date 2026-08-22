@@ -486,9 +486,36 @@ VERDE, VERMELHO, AMARELO, CINZA, AZUL, FIM = (
 )
 
 
+_LOG_CON = None
+
+
+def registrar_logs_no_banco() -> None:
+    """Espelha info/ok/aviso/erro na tabela logs — é o que a página Logs
+    do painel lê quando motor e painel moram em máquinas diferentes.
+    Conexão PRÓPRIA: um commit de log nunca interfere numa transação do
+    daemon. Melhor esforço: log quebrado não pode derrubar a operação."""
+    global _LOG_CON
+    try:
+        _LOG_CON = abrir_banco()
+        corte = (agora() - timedelta(days=3)).isoformat(timespec="seconds")
+        _LOG_CON.execute("DELETE FROM logs WHERE ts < ?", (corte,))
+        _LOG_CON.commit()
+    except Exception:
+        _LOG_CON = None
+
+
 def _log(marca: str, cor: str, msg: str) -> None:
     prefixo = os.environ.get("LOG_PREFIXO", "")
     print(f"{CINZA}{agora():%d/%m %H:%M:%S}{FIM} {prefixo}{cor}{marca}{FIM} {msg}", flush=True)
+    if _LOG_CON is not None:
+        try:
+            _LOG_CON.execute(
+                "INSERT INTO logs (ts, perfil, nivel, texto) VALUES (?, ?, ?, ?)",
+                (agora().isoformat(timespec="seconds"), PERFIL_ATIVO, marca, msg),
+            )
+            _LOG_CON.commit()
+        except Exception:
+            pass  # log é acessório; a operação segue
 
 
 def info(msg: str) -> None:
@@ -624,6 +651,14 @@ CREATE TABLE IF NOT EXISTS entregas (
     criado_em     TEXT NOT NULL,
     atualizado_em TEXT NOT NULL,
     PRIMARY KEY (mlb_id, canal)
+);
+
+CREATE TABLE IF NOT EXISTS logs (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts     TEXT NOT NULL,
+    perfil TEXT NOT NULL DEFAULT '',
+    nivel  TEXT NOT NULL,
+    texto  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS cliques (
