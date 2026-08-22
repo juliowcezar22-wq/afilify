@@ -3,7 +3,14 @@ import { todas } from "@/lib/dados";
 import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
 import { nomeDoProjeto } from "@/lib/projetos";
 import { gruposDaConta, conexaoConfigurada } from "@/lib/whatsapp";
-import { dataCurta, reais, statusOferta } from "@/lib/formatos";
+import {
+  agoraMs,
+  batidaViva,
+  dataCurta,
+  horaDecimalParaHHMM,
+  reais,
+  statusOferta,
+} from "@/lib/formatos";
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
 import { Cartao } from "@/components/ui/cartao";
 import { Selo } from "@/components/ui/selo";
@@ -17,26 +24,33 @@ export default async function Fontes() {
   const ctx = await contextoProjeto();
   const proj = condicaoProjeto(ctx);
 
-  const [cfgClonador, cfgRitmo, grupos] = await Promise.all([
+  const [cfgClonador, cfgRitmo, grupos, oportunidades, batidas] = await Promise.all([
     todas(`SELECT perfil, valor FROM config WHERE chave='clonador'${proj.sql} ORDER BY perfil`, proj.params),
     todas(`SELECT perfil, valor FROM config WHERE chave='ritmo'${proj.sql} ORDER BY perfil`, proj.params),
     gruposDaConta(),
+    todas(
+      `SELECT nome, preco_promocional, desconto_pct, rival_preco, status_envio, erro, criado_em
+       FROM ofertas WHERE origem='clone'${proj.sql} ORDER BY criado_em DESC LIMIT 10`,
+      proj.params,
+    ),
+    todas("SELECT chave, valor FROM estado WHERE chave LIKE '%:heartbeat'"),
   ]);
 
-  const buscaPorPerfil = new Map(
-    cfgRitmo.map((l) => {
-      let horas: number[] = [];
-      try {
-        horas = (JSON.parse(String(l.valor)).busca_horas ?? []) as number[];
-      } catch {}
-      return [String(l.perfil), horas] as const;
-    }),
-  );
+  const horasDe = (l: Record<string, unknown>): number[] => {
+    try {
+      return (JSON.parse(String(l.valor)).busca_horas ?? []) as number[];
+    } catch {
+      return [];
+    }
+  };
 
-  const oportunidades = await todas(
-    `SELECT nome, preco_promocional, desconto_pct, rival_preco, status_envio, erro, criado_em
-     FROM ofertas WHERE origem='clone'${proj.sql} ORDER BY criado_em DESC LIMIT 10`,
-    proj.params,
+  // busca "Ativa" só quando a automação dá sinal de vida de verdade
+  const agora = agoraMs();
+  const viva = new Map(
+    batidas.map((b) => [
+      String(b.chave).replace(":heartbeat", ""),
+      batidaViva(b.valor, agora),
+    ]),
   );
 
   const semConexao = !conexaoConfigurada() || grupos.length === 0;
@@ -60,15 +74,19 @@ export default async function Fontes() {
           <ul className="grid grid-cols-1 gap-3">
             {cfgRitmo.map((l) => {
               const slug = String(l.perfil);
-              const horas = buscaPorPerfil.get(slug) ?? [];
+              const horas = horasDe(l);
               return (
                 <li key={slug} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="font-medium">{nomeDoProjeto(slug)}</span>
-                  <Selo tom="ok">Ativa</Selo>
+                  {viva.get(slug) ? (
+                    <Selo tom="ok">Ativa</Selo>
+                  ) : (
+                    <Selo tom="alerta">Sem sinal no momento</Selo>
+                  )}
                   <span className="text-tinta2">
                     procura promoções{" "}
                     {horas.length > 0
-                      ? `às ${horas.map((h) => `${String(h).padStart(2, "0")}:00`).join(", ")}`
+                      ? `às ${horas.map((h) => horaDecimalParaHHMM(h)).join(", ")}`
                       : "ao longo do dia"}
                   </span>
                 </li>

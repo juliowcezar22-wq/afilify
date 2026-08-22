@@ -2,6 +2,8 @@
 import { useId, useState } from "react";
 import { Botao } from "@/components/ui/botao";
 import { CONTROLE } from "@/components/ui/campos";
+import { AvisoSalvar } from "@/components/ui/aviso";
+import { salvarConfig, type Aviso } from "@/lib/config-cliente";
 
 type Item = { perfil: string; ativo: boolean; base: string };
 
@@ -14,31 +16,35 @@ export function FormTracking({ inicial }: { inicial: Item[] }) {
   const idBase = useId();
   const [ativo, setAtivo] = useState(inicial.some((i) => i.ativo));
   const [base, setBase] = useState(inicial.find((i) => i.base)?.base ?? "");
-  const [aviso, setAviso] = useState<{ tom: "ok" | "erro"; texto: string } | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
     setSalvando(true);
     setAviso(null);
-    for (const item of inicial) {
-      const r = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    try {
+      // aplica em todos os projetos de uma vez; se algum falhar, o aviso
+      // diz exatamente o que ficou de fora (nada de sucesso falso)
+      const resultados = await Promise.all(
+        inicial.map(async (item) => ({
           perfil: item.perfil,
-          chave: "tracking",
-          valor: { ativo, base },
-        }),
-      });
-      if (!r.ok) {
-        const { erro } = await r.json().catch(() => ({ erro: "falha ao salvar" }));
-        setAviso({ tom: "erro", texto: String(erro) });
-        setSalvando(false);
-        return;
+          ...(await salvarConfig(item.perfil, "tracking", { ativo, base })),
+        })),
+      );
+      const falhas = resultados.filter((r) => !r.ok);
+      if (falhas.length === 0) {
+        setAviso({ tom: "ok", texto: "Salvo — vale para as próximas publicações." });
+      } else if (falhas.length === resultados.length) {
+        setAviso({ tom: "erro", texto: falhas[0].erro ?? "falha ao salvar" });
+      } else {
+        setAviso({
+          tom: "erro",
+          texto: `Aplicado em parte dos projetos — tente salvar de novo (${falhas[0].erro ?? "falha"}).`,
+        });
       }
+    } finally {
+      setSalvando(false);
     }
-    setAviso({ tom: "ok", texto: "Salvo — vale para as próximas publicações." });
-    setSalvando(false);
   }
 
   if (inicial.length === 0) {
@@ -83,11 +89,7 @@ export function FormTracking({ inicial }: { inicial: Item[] }) {
         <Botao onClick={salvar} disabled={salvando}>
           {salvando ? "Salvando…" : "Salvar"}
         </Botao>
-        {aviso && (
-          <p role="status" className={`text-sm ${aviso.tom === "ok" ? "text-ok" : "text-erro"}`}>
-            {aviso.texto}
-          </p>
-        )}
+        <AvisoSalvar aviso={aviso} />
       </div>
     </div>
   );

@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 type Variante = "primario" | "secundario" | "fantasma" | "perigo";
 type Tamanho = "sm" | "md";
 
@@ -42,22 +40,3 @@ export function Botao({
   );
 }
 
-export function BotaoLink({
-  variante = "secundario",
-  tamanho = "md",
-  className = "",
-  href,
-  children,
-}: {
-  variante?: Variante;
-  tamanho?: Tamanho;
-  className?: string;
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link href={href} className={`${classesBotao(variante, tamanho)} ${className}`}>
-      {children}
-    </Link>
-  );
-}

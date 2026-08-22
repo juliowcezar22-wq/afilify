@@ -23,17 +23,49 @@ const n = (v: unknown) => Number(v ?? 0);
 export default async function Publicacoes() {
   const ctx = await contextoProjeto();
   const proj = condicaoProjeto(ctx);
+  const projEntrega = condicaoProjeto(ctx, "e.perfil");
   const hoje = hojeISO();
   // "agora" no fuso da operação — o motor grava timestamps locais (D6)
   const agora = agoraLocalISO();
 
-  // ritmo do dia por projeto (estado interno traduzido para produto)
-  const estado = await todas(
-    "SELECT chave, valor FROM estado WHERE chave LIKE '%:plano_do_dia' OR chave LIKE '%:proximo_envio'",
-  );
+  // uma leva só de consultas — todas independentes
+  const [estado, enviadasLinhas, proximas, novasTentativas, recentes] = await Promise.all([
+    todas(
+      "SELECT chave, valor FROM estado WHERE chave LIKE '%:plano_do_dia' OR chave LIKE '%:proximo_envio'",
+    ),
+    todas(
+      `SELECT perfil, COUNT(*) AS n FROM ofertas
+       WHERE status_envio='ENVIADO' AND enviado_em LIKE ?${proj.sql} GROUP BY perfil`,
+      [`${hoje}%`, ...proj.params],
+    ),
+    // ordem real de saída da automação: monitoramento tem prioridade
+    todas(
+      `SELECT mlb_id, nome, desconto_pct, origem, perfil FROM ofertas
+       WHERE status_envio='PENDENTE' AND link_afiliado != ''
+         AND (proxima_tentativa IS NULL OR proxima_tentativa <= ?)${proj.sql}
+       ORDER BY CASE WHEN origem='clone' THEN 0 ELSE 1 END, criado_em DESC LIMIT 15`,
+      [agora, ...proj.params],
+    ),
+    todas(
+      `SELECT mlb_id, nome, proxima_tentativa, erro FROM ofertas
+       WHERE status_envio='PENDENTE' AND proxima_tentativa > ?${proj.sql}
+       ORDER BY proxima_tentativa LIMIT 10`,
+      [agora, ...proj.params],
+    ),
+    todas(
+      `SELECT e.mlb_id, e.status, e.atualizado_em, e.erro, o.nome
+       FROM entregas e LEFT JOIN ofertas o ON o.mlb_id = e.mlb_id
+       WHERE 1=1${projEntrega.sql}
+       ORDER BY e.atualizado_em DESC LIMIT 20`,
+      projEntrega.params,
+    ),
+  ]);
+
+  // ritmo do dia por projeto — plano de OUTRO dia não é apresentado como
+  // de hoje (o motor só reaproveita plano quando plano.data === hoje)
   const planos: Record<
     string,
-    { cota?: number; inicio?: number; fim?: number; proximo?: string }
+    { data?: string; cota?: number; inicio?: number; fim?: number; proximo?: string }
   > = {};
   for (const e of estado) {
     const [slug, chave] = String(e.chave).split(":");
@@ -47,38 +79,13 @@ export default async function Publicacoes() {
       planos[slug].proximo = String(e.valor);
     }
   }
+  for (const slug of Object.keys(planos)) {
+    if (planos[slug].data && planos[slug].data !== hoje) {
+      planos[slug] = { proximo: undefined }; // plano velho: sem cota/janela
+    }
+  }
   const enviadasHoje = Object.fromEntries(
-    (
-      await todas(
-        `SELECT perfil, COUNT(*) AS n FROM ofertas
-         WHERE status_envio='ENVIADO' AND enviado_em LIKE ?${proj.sql} GROUP BY perfil`,
-        [`${hoje}%`, ...proj.params],
-      )
-    ).map((r) => [String(r.perfil), n(r.n)]),
-  );
-
-  // ordem real de saída da automação: monitoramento tem prioridade
-  const proximas = await todas(
-    `SELECT mlb_id, nome, desconto_pct, origem, perfil FROM ofertas
-     WHERE status_envio='PENDENTE' AND link_afiliado != ''
-       AND (proxima_tentativa IS NULL OR proxima_tentativa <= ?)${proj.sql}
-     ORDER BY CASE WHEN origem='clone' THEN 0 ELSE 1 END, criado_em DESC LIMIT 15`,
-    [agora, ...proj.params],
-  );
-
-  const novasTentativas = await todas(
-    `SELECT mlb_id, nome, proxima_tentativa, erro FROM ofertas
-     WHERE status_envio='PENDENTE' AND proxima_tentativa > ?${proj.sql}
-     ORDER BY proxima_tentativa LIMIT 10`,
-    [agora, ...proj.params],
-  );
-
-  const recentes = await todas(
-    `SELECT e.mlb_id, e.status, e.atualizado_em, e.erro, o.nome
-     FROM entregas e LEFT JOIN ofertas o ON o.mlb_id = e.mlb_id
-     WHERE 1=1${condicaoProjeto(ctx, "e.perfil").sql}
-     ORDER BY e.atualizado_em DESC LIMIT 20`,
-    condicaoProjeto(ctx, "e.perfil").params,
+    enviadasLinhas.map((r) => [String(r.perfil), n(r.n)]),
   );
 
   const varios = !ctx.ativo && Object.keys(planos).length > 1;
@@ -95,19 +102,35 @@ export default async function Publicacoes() {
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {Object.entries(planos).map(([slug, p]) => (
             <Cartao key={slug} titulo={nomeDoProjeto(slug)}>
-              <p className="text-2xl font-semibold tabular-nums">
-                {enviadasHoje[slug] ?? 0}
-                <span className="text-tinta2">/{p.cota ?? "—"}</span>
-                <span className="ml-2 text-sm font-normal text-tinta2">
-                  publicações hoje
-                </span>
-              </p>
-              <p className="mt-1 text-xs text-tinta2">
-                Janela de hoje:{" "}
-                {p.inicio != null ? horaDecimalParaHHMM(p.inicio) : "—"}–
-                {p.fim != null ? horaDecimalParaHHMM(p.fim) : "—"}
-                {p.proximo ? ` · próxima por volta de ${horaDe(p.proximo)}` : ""}
-              </p>
+              {p.cota != null ? (
+                <>
+                  <p className="text-2xl font-semibold tabular-nums">
+                    {enviadasHoje[slug] ?? 0}
+                    <span className="text-tinta2">/{p.cota}</span>
+                    <span className="ml-2 text-sm font-normal text-tinta2">
+                      publicações hoje
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-tinta2">
+                    Janela de hoje:{" "}
+                    {p.inicio != null ? horaDecimalParaHHMM(p.inicio) : "—"}–
+                    {p.fim != null ? horaDecimalParaHHMM(p.fim) : "—"}
+                    {p.proximo ? ` · próxima por volta de ${horaDe(p.proximo)}` : ""}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-semibold tabular-nums">
+                    {enviadasHoje[slug] ?? 0}
+                    <span className="ml-2 text-sm font-normal text-tinta2">
+                      publicações hoje
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-tinta2">
+                    A automação ainda não planejou o dia de hoje.
+                  </p>
+                </>
+              )}
             </Cartao>
           ))}
         </div>

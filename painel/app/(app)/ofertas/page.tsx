@@ -1,7 +1,16 @@
 import Link from "next/link";
 import { todas, uma } from "@/lib/dados";
 import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
-import { reais, dataCurta, statusOferta, origemOferta, motivoLegivel } from "@/lib/formatos";
+import {
+  reais,
+  dataCurta,
+  statusOferta,
+  origemOferta,
+  motivoLegivel,
+  SQL_ATENCAO,
+  SQL_IGNORADA,
+} from "@/lib/formatos";
+import { classesBotao } from "@/components/ui/botao";
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
 import { Selo } from "@/components/ui/selo";
 import { Paginacao } from "@/components/ui/paginacao";
@@ -46,7 +55,7 @@ function Preco({ o }: { o: Record<string, unknown> }) {
 
 function LinhaSecundaria({ o }: { o: Record<string, unknown> }) {
   const st = statusOferta(o.status_envio, o.erro);
-  const motivo = st.rotulo === "Precisa de atenção" ? motivoLegivel(o.erro) : "";
+  const motivo = st.tom === "erro" ? motivoLegivel(o.erro) : "";
   return (
     <p className="mt-0.5 truncate text-xs text-tinta3">
       {origemOferta(o.origem)} · {dataCurta(o.criado_em)}
@@ -61,7 +70,6 @@ export default async function Ofertas({ searchParams }: { searchParams: Promise<
   const b = await searchParams;
   const ctx = await contextoProjeto();
   const proj = condicaoProjeto(ctx);
-  const pagina = Math.max(1, n(b.pagina) || 1);
 
   const cond: string[] = ["1=1"];
   const params: unknown[] = [];
@@ -69,7 +77,10 @@ export default async function Ofertas({ searchParams }: { searchParams: Promise<
     cond.push("(nome LIKE ? OR marca LIKE ? OR mlb_id LIKE ?)");
     params.push(`%${b.q}%`, `%${b.q}%`, `%${b.q}%`);
   }
-  if (b.status) {
+  // "Com problema" não inclui as que VOCÊ ignorou — elas têm filtro próprio
+  if (b.status === "ERRO") cond.push(`(${SQL_ATENCAO})`);
+  else if (b.status === "IGNORADA") cond.push(`(${SQL_IGNORADA})`);
+  else if (b.status) {
     cond.push("status_envio = ?");
     params.push(b.status);
   }
@@ -82,6 +93,11 @@ export default async function Ofertas({ searchParams }: { searchParams: Promise<
 
   const total = n(
     (await uma(`SELECT COUNT(*) AS n FROM ofertas WHERE ${onde}`, todosParams))?.n,
+  );
+  // página fora do alcance (bookmark velho) volta para a última existente
+  const pagina = Math.min(
+    Math.max(1, n(b.pagina) || 1),
+    Math.max(1, Math.ceil(total / POR_PAGINA)),
   );
   const linhas = await todas(
     `SELECT mlb_id, nome, marca, url, preco_original, preco_promocional, desconto_pct,
@@ -131,7 +147,7 @@ export default async function Ofertas({ searchParams }: { searchParams: Promise<
               placeholder="Buscar produto ou marca…"
               className={`${CONTROLE} w-56 md:w-64`}
             />
-            <button className="rounded-lg bg-acento px-3 py-2 text-sm font-semibold text-fundo hover:bg-acento2">
+            <button type="submit" className={classesBotao("primario")}>
               Buscar
             </button>
           </form>
@@ -143,6 +159,7 @@ export default async function Ofertas({ searchParams }: { searchParams: Promise<
         <Filtro rotulo="Aguardando" {...filtro("status", "PENDENTE")} />
         <Filtro rotulo="Publicadas" {...filtro("status", "ENVIADO")} />
         <Filtro rotulo="Com problema" {...filtro("status", "ERRO")} />
+        <Filtro rotulo="Ignoradas" {...filtro("status", "IGNORADA")} />
         <span aria-hidden className="mx-2 h-4 w-px bg-linha" />
         <span className="text-xs text-tinta3">Origem</span>
         <Filtro rotulo="Busca automática" {...filtro("origem", "busca")} />

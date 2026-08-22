@@ -1,7 +1,8 @@
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
 import { Cartao } from "@/components/ui/cartao";
 
-export const dynamic = "force-static";
+// dinâmica como as irmãs: o shell compartilhado lê cookie + banco —
+// prerender congelaria o seletor de projeto desta rota
 
 const CONCEITOS: Array<[string, string]> = [
   [

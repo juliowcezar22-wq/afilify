@@ -4,6 +4,7 @@
  * filtram por projeto.
  */
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { todas } from "@/lib/dados";
 import { COOKIE_PROJETO, comoProjetos, projetoAtivo, type Projeto } from "@/lib/projetos";
@@ -14,7 +15,8 @@ export type ContextoProjeto = {
   ativo: Projeto | null;
 };
 
-export async function contextoProjeto(): Promise<ContextoProjeto> {
+/** Memoizado por request (React cache): layout e página compartilham. */
+export const contextoProjeto = cache(async (): Promise<ContextoProjeto> => {
   const [linhas, jar] = await Promise.all([
     todas("SELECT DISTINCT perfil FROM config ORDER BY perfil").catch(() => []),
     cookies(),
@@ -22,7 +24,7 @@ export async function contextoProjeto(): Promise<ContextoProjeto> {
   const projetos = comoProjetos(linhas.map((l) => l.perfil));
   const ativo = projetoAtivo(jar.get(COOKIE_PROJETO)?.value, projetos);
   return { projetos, ativo };
-}
+});
 
 /** Condição SQL de projeto ("AND perfil = ?") respeitando o contexto. */
 export function condicaoProjeto(ctx: ContextoProjeto, coluna = "perfil") {

@@ -3,6 +3,9 @@ import { useId, useMemo, useState } from "react";
 import { Botao } from "@/components/ui/botao";
 import { CONTROLE } from "@/components/ui/campos";
 import { Cartao } from "@/components/ui/cartao";
+import { Detalhes } from "@/components/ui/detalhes";
+import { AvisoSalvar } from "@/components/ui/aviso";
+import { salvarConfig, type Aviso } from "@/lib/config-cliente";
 
 type Cfg = Record<string, unknown>;
 type Msg = { base?: string; linha_loja_oficial?: string; rodape?: string };
@@ -47,7 +50,7 @@ export function Editor({
     Object.fromEntries(Object.entries(hl0).map(([k, v]) => [k, [...v]])),
   );
   const [novas, setNovas] = useState<Record<string, string>>({});
-  const [aviso, setAviso] = useState<{ tom: "ok" | "erro"; texto: string } | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [salvando, setSalvando] = useState(false);
 
   const preview = useMemo(() => {
@@ -87,35 +90,40 @@ export function Editor({
   async function salvar() {
     setSalvando(true);
     setAviso(null);
-    const headlines = Object.fromEntries(
-      Object.entries(pools).map(([k, v]) => [k, v.map((s) => s.trim()).filter(Boolean)]),
-    );
-    const vazio = Object.entries(headlines).find(([, v]) => v.length === 0);
-    if (vazio) {
-      setAviso({
-        tom: "erro",
-        texto: `A categoria "${nomePool(vazio[0])}" precisa de pelo menos uma chamada.`,
-      });
-      setSalvando(false);
-      return;
-    }
-    for (const [chave, valor] of [
-      ["mensagem", { base, linha_loja_oficial: linhaLoja, rodape }],
-      ["headlines", headlines],
-    ] as const) {
-      const r = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ perfil, chave, valor }),
-      });
-      if (!r.ok) {
-        setAviso({ tom: "erro", texto: String((await r.json()).erro ?? "falha ao salvar") });
-        setSalvando(false);
+    try {
+      // chamada digitada mas ainda não adicionada entra junto — nada se perde
+      const poolsFinais = { ...pools };
+      for (const [pool, texto] of Object.entries(novas)) {
+        const t = texto.trim();
+        if (t) poolsFinais[pool] = [...(poolsFinais[pool] ?? []), t];
+      }
+      const headlines = Object.fromEntries(
+        Object.entries(poolsFinais).map(([k, v]) => [k, v.map((s) => s.trim()).filter(Boolean)]),
+      );
+      const vazio = Object.entries(headlines).find(([, v]) => v.length === 0);
+      if (vazio) {
+        setAviso({
+          tom: "erro",
+          texto: `A categoria "${nomePool(vazio[0])}" precisa de pelo menos uma chamada.`,
+        });
         return;
       }
+      for (const [chave, valor] of [
+        ["mensagem", { base, linha_loja_oficial: linhaLoja, rodape }],
+        ["headlines", headlines],
+      ] as const) {
+        const r = await salvarConfig(perfil, chave, valor);
+        if (!r.ok) {
+          setAviso({ tom: "erro", texto: r.erro ?? "falha ao salvar" });
+          return;
+        }
+      }
+      setPools(poolsFinais);
+      setNovas({});
+      setAviso({ tom: "ok", texto: "Salvo — vale a partir da próxima publicação." });
+    } finally {
+      setSalvando(false);
     }
-    setAviso({ tom: "ok", texto: "Salvo — vale a partir da próxima publicação." });
-    setSalvando(false);
   }
 
   return (
@@ -197,13 +205,10 @@ export function Editor({
             />
           </div>
 
-          <details className="group rounded-lg border border-linha p-3">
-            <summary className="cursor-pointer select-none text-xs font-medium text-tinta2 hover:text-tinta">
-              <span aria-hidden className="mr-1 inline-block transition-transform group-open:rotate-90">
-                ▸
-              </span>
-              Modo avançado — estrutura da mensagem
-            </summary>
+          <Detalhes
+            rotulo="Modo avançado — estrutura da mensagem"
+            className="rounded-lg border border-linha p-3"
+          >
             <div className="mt-3 grid grid-cols-1 gap-4">
               <p className="text-xs text-tinta3">
                 A estrutura usa variáveis entre chaves que são preenchidas a cada
@@ -235,20 +240,13 @@ export function Editor({
                 />
               </div>
             </div>
-          </details>
+          </Detalhes>
 
           <div className="flex items-center gap-3">
             <Botao onClick={salvar} disabled={salvando}>
               {salvando ? "Salvando…" : "Salvar"}
             </Botao>
-            {aviso && (
-              <p
-                role="status"
-                className={`text-sm ${aviso.tom === "ok" ? "text-ok" : "text-erro"}`}
-              >
-                {aviso.texto}
-              </p>
-            )}
+            <AvisoSalvar aviso={aviso} />
           </div>
         </div>
 

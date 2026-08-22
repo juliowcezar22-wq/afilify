@@ -17,20 +17,18 @@ export default async function Destinos() {
   const ctx = await contextoProjeto();
   const proj = condicaoProjeto(ctx);
 
-  const [cfgs, grupos] = await Promise.all([
+  const hoje = hojeISO();
+  const [cfgs, grupos, enviadasLinhas] = await Promise.all([
     todas(`SELECT perfil, valor FROM config WHERE chave='canal'${proj.sql} ORDER BY perfil`, proj.params),
     gruposDaConta(),
+    todas(
+      `SELECT e.canal, COUNT(*) AS n FROM entregas e
+       WHERE e.status='enviada' AND e.atualizado_em LIKE ? GROUP BY e.canal`,
+      [`${hoje}%`],
+    ),
   ]);
-
-  const hoje = hojeISO();
   const enviadas = Object.fromEntries(
-    (
-      await todas(
-        `SELECT e.canal, COUNT(*) AS n FROM entregas e
-         WHERE e.status='enviada' AND e.atualizado_em LIKE ? GROUP BY e.canal`,
-        [`${hoje}%`],
-      )
-    ).map((r) => [String(r.canal), Number(r.n)]),
+    enviadasLinhas.map((r) => [String(r.canal), Number(r.n)]),
   );
 
   const destinos = cfgs.map((c) => {

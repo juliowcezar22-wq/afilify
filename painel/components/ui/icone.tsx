@@ -16,7 +16,6 @@ export type NomeIcone =
   | "menu"
   | "fechar"
   | "projeto"
-  | "busca"
   | "seta-baixo";
 
 const DESENHOS: Record<NomeIcone, React.ReactNode> = {
@@ -121,12 +120,6 @@ const DESENHOS: Record<NomeIcone, React.ReactNode> = {
   projeto: (
     <>
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-    </>
-  ),
-  busca: (
-    <>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4-4" />
     </>
   ),
   "seta-baixo": (

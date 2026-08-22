@@ -2,6 +2,7 @@ import { todas } from "@/lib/dados";
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
 import { Cartao } from "@/components/ui/cartao";
 import { Selo } from "@/components/ui/selo";
+import { classesBotao } from "@/components/ui/botao";
 import { FormTracking } from "./tracking";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export default async function Configuracoes() {
             Você está conectado ao painel da Afilify.
           </p>
           <form action="/api/sair" method="post" className="mt-3">
-            <button className="rounded-lg border border-linha bg-carta2 px-4 py-2 text-sm font-semibold text-tinta hover:bg-carta3">
+            <button type="submit" className={classesBotao("secundario")}>
               Sair da conta
             </button>
           </form>

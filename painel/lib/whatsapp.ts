@@ -1,11 +1,9 @@
 /**
- * Conexão WhatsApp no servidor — lista de grupos e utilidades de exibição.
- * O identificador técnico do grupo (JID) nunca é primário na UI; use
- * nomeDoGrupo/mascararGrupo e deixe o id em "Detalhes técnicos".
+ * Conexão WhatsApp no servidor — lista de grupos da conta conectada.
+ * Exibição (nome/máscara) mora em lib/grupos.ts, client-safe.
  */
 import "server-only";
-
-export type Grupo = { jid: string; nome: string };
+import type { Grupo } from "@/lib/grupos";
 
 export function conexaoConfigurada(): boolean {
   return Boolean(process.env.UAZAPI_URL && process.env.UAZAPI_TOKEN);
@@ -30,17 +28,4 @@ export async function gruposDaConta(): Promise<Grupo[]> {
   } catch {
     return [];
   }
-}
-
-/** Nome de exibição de um grupo; cai no identificador mascarado. */
-export function nomeDoGrupo(jid: string, grupos: Grupo[]): string {
-  const g = grupos.find((x) => x.jid === jid);
-  if (g?.nome) return g.nome;
-  return mascararGrupo(jid);
-}
-
-/** "1203…8302@g.us" → "Grupo …8302" (id interno nunca aparece inteiro). */
-export function mascararGrupo(jid: string): string {
-  const base = jid.split("@")[0] ?? "";
-  return base ? `Grupo …${base.slice(-4)}` : "Grupo sem nome";
 }

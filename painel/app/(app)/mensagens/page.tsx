@@ -25,12 +25,19 @@ export default async function Mensagens() {
     } catch {}
   }
 
-  // uma oferta real para o preview ficar honesto
-  const amostra = await uma(
-    `SELECT nome, marca, loja, loja_oficial, preco_original, preco_promocional,
-            desconto_pct, condicao, link_afiliado
-     FROM ofertas WHERE status_envio='ENVIADO' AND loja_oficial=1
-     ORDER BY enviado_em DESC LIMIT 1`,
+  // uma oferta real DO PRÓPRIO PROJETO para o preview ficar honesto
+  const amostras: Record<string, Record<string, unknown>> = {};
+  await Promise.all(
+    Object.keys(porPerfil).map(async (perfil) => {
+      const propria = await uma(
+        `SELECT nome, marca, loja, loja_oficial, preco_original, preco_promocional,
+                desconto_pct, condicao, link_afiliado
+         FROM ofertas WHERE status_envio='ENVIADO' AND perfil=?
+         ORDER BY loja_oficial DESC, enviado_em DESC LIMIT 1`,
+        [perfil],
+      );
+      if (propria) amostras[perfil] = propria;
+    }),
   );
 
   return (
@@ -55,7 +62,7 @@ export default async function Mensagens() {
               perfil={perfil}
               nomeProjeto={nomeDoProjeto(perfil)}
               cfg={cfg}
-              amostra={amostra ?? {}}
+              amostra={amostras[perfil] ?? {}}
             />
           ))}
         </div>

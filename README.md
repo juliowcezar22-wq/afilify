@@ -29,7 +29,7 @@ nichos/                 o QUE publicar  (perfumes.py, casa.py)
 perfis/                 nicho + marketplaces + grupo + ritmo = um projeto
                         (perfumes_ml.py, casa_ml_shopee.py)
 
-painel/                 Next.js — 10 páginas, lê o MESMO banco do motor
+painel/                 Next.js — painel do produto, lê o MESMO banco do motor
 db/                     migrações Postgres 0001..0005 + importador de cutover
 deploy/                 compose, Dockerfiles, Caddy, backup, systemd
 tests/                  84 testes (rodam em banco temporário, sempre)
@@ -52,7 +52,7 @@ cd painel && pnpm build && pnpm start -p 3001
 ```
 
 Um perfil roda quando `ATIVO=True` **e** tem destino: `GRUPO_WHATSAPP`
-no arquivo *ou* grupo escolhido na página **/canais** do painel — é
+no arquivo *ou* grupo escolhido na página **/destinos** do painel — é
 assim que o grupo de casa liga sem tocar em código.
 
 ## Painel ↔ motor: config dinâmica
@@ -63,11 +63,11 @@ vigentes, nunca sobrescrevendo edição):
 
 | chave      | página do painel | o que controla |
 |------------|------------------|----------------|
-| `mensagem`  | Templates       | modelo da mensagem + rodapé |
-| `headlines` | Templates       | pools de abertura rotativos |
-| `ritmo`     | Configurações   | cota/dia, janela, coletas, validade, proporção |
-| `clonador`  | Copiador        | ligado, grupos rivais monitorados |
-| `canal`     | Grupos & canais | grupo de destino da publicação |
+| `mensagem`  | Mensagens       | modelo da mensagem + rodapé |
+| `headlines` | Mensagens       | pools de abertura rotativos |
+| `ritmo`     | Ritmo & Regras  | cota/dia, janela, coletas, validade, proporção |
+| `clonador`  | Fontes          | ligado, grupos rivais monitorados |
+| `canal`     | Destinos        | grupo de destino da publicação |
 | `tracking`  | Configurações   | cliques via `/r/{código}` (desligado por padrão) |
 
 Cota e janela novas valem a partir do plano de **amanhã** (o plano do

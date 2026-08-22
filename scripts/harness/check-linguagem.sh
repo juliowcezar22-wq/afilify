@@ -18,6 +18,7 @@ TERMOS=(
   "LOG_PATH"
   "Postgres" "postgres" "SQLite" "sqlite"
   "perfumes-ml" "casa-ml-shopee" "perfumes_ml"
+  "[a-z]+[-_](ml|shopee|amazon|magalu|shein|tiktok)[\"'\`< ]"   # slugs futuros
   "fura a fila"
   "deploy" "restart"
   "EasyPanel"

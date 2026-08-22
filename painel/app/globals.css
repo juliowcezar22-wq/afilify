@@ -37,11 +37,12 @@ body {
   color: var(--color-tinta);
 }
 
-/* Foco visível universal — anel consistente em qualquer controle */
+/* Foco visível universal — anel consistente em qualquer controle.
+   Sem border-radius aqui: regra fora de @layer venceria os rounded-* dos
+   utilitários e deformaria pills/botões ao focar. */
 :focus-visible {
   outline: 2px solid var(--color-acento);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* Scrollbar discreta nas áreas com rolagem própria */

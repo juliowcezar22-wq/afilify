@@ -5,6 +5,7 @@ import { dataCorte, diaCurto } from "@/lib/formatos";
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
 import { Cartao } from "@/components/ui/cartao";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { Indicador } from "@/components/ui/indicador";
 
 export const dynamic = "force-dynamic";
 
@@ -91,9 +92,18 @@ export default async function Desempenho({
     ),
   ]);
 
-  let cliques = 0;
+  // cliques respeitam o projeto ativo (join via código do link da oferta);
+  // null = recurso indisponível neste ambiente (≠ 0 cliques)
+  let cliques: number | null = null;
   try {
-    const c = await todas("SELECT COUNT(*) n FROM cliques WHERE quando >= ?", [corte]);
+    const c = ctx.ativo
+      ? await todas(
+          `SELECT COUNT(*) n FROM cliques c
+           JOIN ofertas o ON o.codigo = c.codigo
+           WHERE c.quando >= ? AND o.perfil = ?`,
+          [corte, ctx.ativo.slug],
+        )
+      : await todas("SELECT COUNT(*) n FROM cliques WHERE quando >= ?", [corte]);
     cliques = Number(c[0]?.n ?? 0);
   } catch {
     /* contagem de cliques ainda não disponível neste ambiente */
@@ -108,7 +118,8 @@ export default async function Desempenho({
     ["Vindas do monitoramento", total ? `${Math.round((doMonitoramento / total) * 100)}%` : "—"],
     ["Desconto médio", k.desc_medio ? `${k.desc_medio}%` : "—"],
     ["Preço médio publicado", k.ticket ? `R$ ${Number(k.ticket).toFixed(2)}` : "—"],
-    ["Cliques no período", cliques ? fmt(cliques) : "—"],
+    // 0 clique é informação real; "—" só quando o recurso não existe aqui
+    ["Cliques no período", cliques == null ? "—" : fmt(cliques)],
   ];
 
   const maxDia = Math.max(1, ...porDia.map((x) => Number(x.n)));
@@ -151,10 +162,7 @@ export default async function Desempenho({
         <>
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
             {cards.map(([r, v]) => (
-              <div key={r} className="rounded-xl border border-linha bg-carta p-4">
-                <p className="text-[11px] uppercase tracking-wider text-tinta2">{r}</p>
-                <p className="mt-1 text-xl font-semibold tabular-nums md:text-2xl">{v}</p>
-              </div>
+              <Indicador key={r} rotulo={r} valor={v} compacto />
             ))}
           </div>
 

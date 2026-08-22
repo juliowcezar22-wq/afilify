@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # FULL CHECK — verificação completa do redesign (fim de milestone).
 #   lint + typecheck (fast-check) → build de produção → linguagem →
-#   integridade do motor (nenhum arquivo Python alterado) → tasks abertas.
+#   integridade do motor (allowlist) → tasks abertas.
 #
 # Sucesso grava .harness/last-verify-ok com a assinatura da árvore — o
 # Stop hook usa isso para saber se a verificação vale para o estado atual.
@@ -41,20 +41,21 @@ if ! "$RAIZ/scripts/harness/check-linguagem.sh"; then
   FALHAS+=("linguagem")
 fi
 
-# 4. motor intocado (D1): nenhum arquivo Python/SQL do motor pode divergir da main
-MOTOR_DIFF=$(cd "$RAIZ" && git diff --name-only main -- \
-  'nucleo' 'mercadolivre' 'shopee' 'perfis' 'nichos' 'db' 'tests' \
-  'runner.py' 'agente.py' 'requirements.txt' 2>/dev/null || true)
-if [ -n "$MOTOR_DIFF" ]; then
-  echo "✗ arquivos do motor alterados (proibido pela D1):"
-  echo "$MOTOR_DIFF"
+# 4. motor intocado (D1) — ALLOWLIST: qualquer arquivo fora das áreas do
+# redesign é violação (um diretório novo do motor fica protegido por padrão)
+FORA=$(cd "$RAIZ" && git diff --name-only main | grep -vE \
+  '^(painel/|docs/|scripts/harness/|\.claude/|CLAUDE\.md|README\.md|TASKS_AFILIFY_REDESIGN\.md|PROGRESS_AFILIFY_REDESIGN\.md|\.gitignore)' || true)
+if [ -n "$FORA" ]; then
+  echo "✗ arquivos fora do escopo do redesign alterados (D1):"
+  echo "$FORA"
   FALHAS+=("motor-intocado")
 else
-  echo "✓ motor intocado (diff vs main vazio fora do painel/docs)"
+  echo "✓ motor intocado (diff vs main restrito a painel/docs/harness)"
 fi
 
-# 5. tasks abertas
-ABERTAS=$(grep -c '^- \[ \]' "$RAIZ/TASKS_AFILIFY_REDESIGN.md" 2>/dev/null || echo 0)
+# 5. tasks abertas (grep -c imprime 0 E sai 1 sem match — capturar stdout)
+ABERTAS=$(grep -c '^- \[ \]' "$RAIZ/TASKS_AFILIFY_REDESIGN.md" 2>/dev/null || true)
+ABERTAS=${ABERTAS:-0}
 echo "· tasks abertas: $ABERTAS"
 
 echo "═════════════════════════"
@@ -65,7 +66,12 @@ fi
 
 if [ "$SEM_BUILD" -eq 0 ]; then
   mkdir -p "$RAIZ/.harness"
-  ASSINATURA=$(cd "$RAIZ" && { git rev-parse HEAD; git status --porcelain; } | shasum | cut -d' ' -f1)
+  ASSINATURA=$(cd "$RAIZ" && {
+    git rev-parse HEAD
+    git status --porcelain
+    git diff HEAD
+    git ls-files --others --exclude-standard -z | xargs -0 shasum 2>/dev/null
+  } | shasum | cut -d' ' -f1)
   echo "$ASSINATURA" > "$RAIZ/.harness/last-verify-ok"
 fi
 

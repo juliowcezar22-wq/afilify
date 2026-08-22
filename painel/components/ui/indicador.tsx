@@ -17,23 +17,27 @@ export function Indicador({
   tom,
   detalhe,
   href,
+  compacto = false,
 }: {
   rotulo: string;
   valor: string | number;
   tom?: Tom;
   detalhe?: string;
   href?: string;
+  compacto?: boolean;
 }) {
   const corpo = (
     <>
-      <p className="text-xs font-medium uppercase tracking-wider text-tinta2">{rotulo}</p>
-      <p className={`mt-2 text-3xl font-semibold tabular-nums ${VALORES[tom ?? "padrao"]}`}>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-tinta2">{rotulo}</p>
+      <p
+        className={`${compacto ? "mt-1 text-xl md:text-2xl" : "mt-2 text-3xl"} font-semibold tabular-nums ${VALORES[tom ?? "padrao"]}`}
+      >
         {valor}
       </p>
       {detalhe && <p className="mt-1 truncate text-xs text-tinta3">{detalhe}</p>}
     </>
   );
-  const caixa = "block rounded-xl border border-linha bg-carta p-5";
+  const caixa = `block rounded-xl border border-linha bg-carta ${compacto ? "p-4" : "p-5"}`;
   if (href) {
     return (
       <Link href={href} className={`${caixa} transition-colors hover:border-linha2 hover:bg-carta2`}>

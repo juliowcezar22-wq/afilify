@@ -128,3 +128,31 @@ O motor grava timestamps locais sem offset; o painel legado comparava
 `proxima_tentativa` com `new Date().toISOString()` (UTC, 3h de erro).
 `agoraLocalISO()` compara no fuso America/Sao_Paulo. Comportamento
 corrigido — melhora real, sem mudança de contrato.
+
+## 2026-08-22 · D21 — Limiar da batida de vida: 5 minutos
+Uma iteração do ciclo da automação passa de 90s durante coletas; com o
+limiar herdado o Dashboard alternava para "Sem sinal" com a automação
+trabalhando. `LIMITE_BATIDA_MS` = 5 min (lib/formatos), usado por
+Dashboard e Fontes. O endpoint técnico de monitoramento mantém 90s
+(contrato de quem já consome). Reversível: total.
+
+## 2026-08-22 · D22 — KPI e lista contam a mesma coisa
+Auditoria achou cartões discordando das listas para onde levavam.
+Regra: todo Indicador clicável usa exatamente o critério da lista de
+destino. "Aguardando publicação" = todas as PENDENTE; "Precisam de
+atenção" = ERRO excluindo ignoradas — e o filtro "Com problema" de
+/ofertas passou a excluir ignoradas, que ganharam filtro próprio
+("Ignoradas", pseudo-status IGNORADA na URL). Reversível: sim.
+
+## 2026-08-22 · D23 — Rodada de correções da auditoria adversarial
+15 findings confirmados corrigidos (2026-08-22): harness (contagem grep,
+assinatura sensível a conteúdo, anti-loop com stop_hook_active, guarda do
+motor por allowlist), campo de hora vazio jamais vira meia-noite, seletor
+de projeto com 1 projeto/resync entre instâncias, plano de outro dia não
+aparece como de hoje, cliques por projeto, preview de mensagens por
+projeto, chamada digitada não se perde no salvar, try/finally em todos os
+saves, refresh após trocar destino, grupos sem nome selecionáveis,
+"Ativa" em Fontes ligada à batida real, /ajuda dinâmica, focus ring sem
+deformar cantos, motivos de erro do motor higienizados (payload técnico
+nunca vaza). Refutados na verificação: parse de heartbeat dependente de
+fuso (timestamps do motor têm offset) e fallback de select controlado.

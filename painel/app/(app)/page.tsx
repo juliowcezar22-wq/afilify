@@ -2,7 +2,7 @@ import Link from "next/link";
 import { obterBanco, todas, uma } from "@/lib/dados";
 import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
 import { nomeDoProjeto } from "@/lib/projetos";
-import { agoraMs, dataCurta, hojeISO } from "@/lib/formatos";
+import { agoraMs, batidaViva, dataCurta, hojeISO, SQL_ATENCAO } from "@/lib/formatos";
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
 import { Cartao } from "@/components/ui/cartao";
 import { Indicador } from "@/components/ui/indicador";
@@ -32,39 +32,37 @@ export default async function Dashboard() {
       )?.n,
     );
 
-  const [encontradas, publicadas, aguardando, atencao] = await Promise.all([
-    contar("criado_em LIKE ?", [`${hoje}%`]),
-    contar("status_envio='ENVIADO' AND enviado_em LIKE ?", [`${hoje}%`]),
-    contar("status_envio='PENDENTE' AND link_afiliado != ''"),
-    contar("status_envio='ERRO' AND erro NOT LIKE '%ignorada%'"),
-  ]);
+  // uma leva só de consultas — todas independentes
+  const [encontradas, publicadas, aguardando, atencao, batidas, porProjeto, recentes] =
+    await Promise.all([
+      contar("criado_em LIKE ?", [`${hoje}%`]),
+      contar("status_envio='ENVIADO' AND enviado_em LIKE ?", [`${hoje}%`]),
+      // mesmo critério da lista para onde o cartão leva (status Aguardando)
+      contar("status_envio='PENDENTE'"),
+      contar(SQL_ATENCAO),
+      todas("SELECT chave, valor FROM estado WHERE chave LIKE '%:heartbeat'"),
+      todas(
+        `SELECT perfil,
+                SUM(CASE WHEN status_envio='ENVIADO' AND enviado_em LIKE ? THEN 1 ELSE 0 END) AS hoje,
+                SUM(CASE WHEN status_envio='PENDENTE' THEN 1 ELSE 0 END) AS fila
+         FROM ofertas WHERE 1=1${proj.sql} GROUP BY perfil ORDER BY perfil`,
+        [`${hoje}%`, ...proj.params],
+      ),
+      todas(
+        `SELECT nome, desconto_pct, enviado_em FROM ofertas
+         WHERE status_envio='ENVIADO'${proj.sql}
+         ORDER BY enviado_em DESC LIMIT 8`,
+        proj.params,
+      ),
+    ]);
 
-  // saúde percebida por projeto: batidas de vida da automação (sem jargão)
-  const batidas = await todas(
-    "SELECT chave, valor FROM estado WHERE chave LIKE '%:heartbeat'",
-  );
   const agora = agoraMs();
   const saude = batidas
     .map((b) => ({
       slug: String(b.chave).replace(":heartbeat", ""),
-      ok: agora - new Date(String(b.valor)).getTime() < 90_000,
+      ok: batidaViva(b.valor, agora),
     }))
     .filter((s) => !ctx.ativo || s.slug === ctx.ativo.slug);
-
-  const porProjeto = await todas(
-    `SELECT perfil,
-            SUM(CASE WHEN status_envio='ENVIADO' AND enviado_em LIKE ? THEN 1 ELSE 0 END) AS hoje,
-            SUM(CASE WHEN status_envio='PENDENTE' AND link_afiliado != '' THEN 1 ELSE 0 END) AS fila
-     FROM ofertas WHERE 1=1${proj.sql} GROUP BY perfil ORDER BY perfil`,
-    [`${hoje}%`, ...proj.params],
-  );
-
-  const recentes = await todas(
-    `SELECT nome, desconto_pct, enviado_em, origem FROM ofertas
-     WHERE status_envio='ENVIADO'${proj.sql}
-     ORDER BY enviado_em DESC LIMIT 8`,
-    proj.params,
-  );
 
   const tudoBem = saude.length > 0 && saude.every((s) => s.ok) && atencao === 0;
 

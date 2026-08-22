@@ -3,9 +3,11 @@ import { useId, useState } from "react";
 import { Botao } from "@/components/ui/botao";
 import { CONTROLE } from "@/components/ui/campos";
 import { DetalhesTecnicos } from "@/components/ui/detalhes-tecnicos";
+import { AvisoSalvar } from "@/components/ui/aviso";
+import { salvarConfig, type Aviso } from "@/lib/config-cliente";
+import { nomeDoGrupo, type Grupo } from "@/lib/grupos";
 
 type Cfg = { ativo?: boolean; grupos?: string[]; intervalo_seg?: number; janela_min?: number };
-type Grupo = { jid: string; nome: string };
 
 /* Presets legíveis (D12) — o valor gravado continua em segundos/minutos,
    contrato do motor intocado. Valor fora dos presets é preservado. */
@@ -39,28 +41,30 @@ export function FormMonitoramento({
   const [grupos, setGrupos] = useState<string[]>(inicial.grupos ?? []);
   const [intervalo, setIntervalo] = useState(inicial.intervalo_seg ?? 180);
   const [janela, setJanela] = useState(inicial.janela_min ?? 90);
-  const [aviso, setAviso] = useState<{ tom: "ok" | "erro"; texto: string } | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
-  const nomeDe = (jid: string) =>
-    disponiveis.find((g) => g.jid === jid)?.nome || `Grupo …${jid.split("@")[0].slice(-4)}`;
+  const nomeDe = (jid: string) => nomeDoGrupo(jid, disponiveis);
   const candidatos = disponiveis.filter((g) => !grupos.includes(g.jid));
 
   async function salvar() {
+    setSalvando(true);
     setAviso(null);
-    const r = await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        perfil,
-        chave: "clonador",
-        valor: { ativo, grupos, intervalo_seg: intervalo, janela_min: janela },
-      }),
-    });
-    setAviso(
-      r.ok
-        ? { tom: "ok", texto: "Salvo — o monitoramento já usa a nova configuração." }
-        : { tom: "erro", texto: String((await r.json()).erro ?? "falha ao salvar") },
-    );
+    try {
+      const r = await salvarConfig(perfil, "clonador", {
+        ativo,
+        grupos,
+        intervalo_seg: intervalo,
+        janela_min: janela,
+      });
+      setAviso(
+        r.ok
+          ? { tom: "ok", texto: "Salvo — o monitoramento já usa a nova configuração." }
+          : { tom: "erro", texto: r.erro ?? "falha ao salvar" },
+      );
+    } finally {
+      setSalvando(false);
+    }
   }
 
   const opcoes = (presets: Array<[number, string]>, atual: number) =>
@@ -166,12 +170,10 @@ export function FormMonitoramento({
       </div>
 
       <div className="mt-5 flex items-center gap-3">
-        <Botao onClick={salvar}>Salvar</Botao>
-        {aviso && (
-          <p role="status" className={`text-sm ${aviso.tom === "ok" ? "text-ok" : "text-erro"}`}>
-            {aviso.texto}
-          </p>
-        )}
+        <Botao onClick={salvar} disabled={salvando}>
+          {salvando ? "Salvando…" : "Salvar"}
+        </Botao>
+        <AvisoSalvar aviso={aviso} />
       </div>
 
       <DetalhesTecnicos
