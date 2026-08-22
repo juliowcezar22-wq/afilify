@@ -1,127 +1,218 @@
-import { todas, uma } from "@/lib/dados";
+import { todas } from "@/lib/dados";
+import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
+import { nomeDoProjeto } from "@/lib/projetos";
+import {
+  agoraLocalISO,
+  dataCurta,
+  hojeISO,
+  horaDe,
+  horaDecimalParaHHMM,
+  motivoLegivel,
+  statusEntrega,
+} from "@/lib/formatos";
+import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { Cartao } from "@/components/ui/cartao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
 
 export const dynamic = "force-dynamic";
 
 const n = (v: unknown) => Number(v ?? 0);
-const hhmm = (h: number) => {
-  const m = Math.round(h * 60);
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-};
 
-export default async function Fila() {
-  const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+/** O que está aguardando, o que vem em seguida e o que já aconteceu. */
+export default async function Publicacoes() {
+  const ctx = await contextoProjeto();
+  const proj = condicaoProjeto(ctx);
+  const hoje = hojeISO();
+  // "agora" no fuso da operação — o motor grava timestamps locais (D6)
+  const agora = agoraLocalISO();
 
-  // plano do dia + próximo envio, por perfil (chaves "perfil:chave" do estado)
+  // ritmo do dia por projeto (estado interno traduzido para produto)
   const estado = await todas(
-    "SELECT chave, valor FROM estado WHERE chave LIKE '%:plano_do_dia' OR chave LIKE '%:proximo_envio'");
-  const planos: Record<string, { cota?: number; inicio?: number; fim?: number; proximo?: string }> = {};
+    "SELECT chave, valor FROM estado WHERE chave LIKE '%:plano_do_dia' OR chave LIKE '%:proximo_envio'",
+  );
+  const planos: Record<
+    string,
+    { cota?: number; inicio?: number; fim?: number; proximo?: string }
+  > = {};
   for (const e of estado) {
-    const [perfil, chave] = String(e.chave).split(":");
-    planos[perfil] ??= {};
+    const [slug, chave] = String(e.chave).split(":");
+    if (ctx.ativo && slug !== ctx.ativo.slug) continue;
+    planos[slug] ??= {};
     if (chave === "plano_do_dia") {
-      try { Object.assign(planos[perfil], JSON.parse(String(e.valor))); } catch {}
-    } else planos[perfil].proximo = String(e.valor);
+      try {
+        Object.assign(planos[slug], JSON.parse(String(e.valor)));
+      } catch {}
+    } else {
+      planos[slug].proximo = String(e.valor);
+    }
   }
-  const enviadasHoje = Object.fromEntries((await todas(
-    "SELECT perfil, COUNT(*) AS n FROM ofertas WHERE status_envio='ENVIADO' AND enviado_em LIKE ? GROUP BY perfil",
-    [`${hoje}%`])).map((r) => [String(r.perfil), n(r.n)]));
+  const enviadasHoje = Object.fromEntries(
+    (
+      await todas(
+        `SELECT perfil, COUNT(*) AS n FROM ofertas
+         WHERE status_envio='ENVIADO' AND enviado_em LIKE ?${proj.sql} GROUP BY perfil`,
+        [`${hoje}%`, ...proj.params],
+      )
+    ).map((r) => [String(r.perfil), n(r.n)]),
+  );
 
-  // ordem aproximada do publisher: clone fura a fila, depois mais recentes
+  // ordem real de saída da automação: monitoramento tem prioridade
   const proximas = await todas(
-    `SELECT mlb_id, nome, marca, desconto_pct, origem, perfil FROM ofertas
+    `SELECT mlb_id, nome, desconto_pct, origem, perfil FROM ofertas
      WHERE status_envio='PENDENTE' AND link_afiliado != ''
-       AND (proxima_tentativa IS NULL OR proxima_tentativa <= ?)
+       AND (proxima_tentativa IS NULL OR proxima_tentativa <= ?)${proj.sql}
      ORDER BY CASE WHEN origem='clone' THEN 0 ELSE 1 END, criado_em DESC LIMIT 15`,
-    [new Date().toISOString()]);
+    [agora, ...proj.params],
+  );
 
-  const emEspera = await todas(
-    `SELECT mlb_id, nome, tentativas, proxima_tentativa, erro FROM ofertas
-     WHERE status_envio='PENDENTE' AND proxima_tentativa > ? ORDER BY proxima_tentativa`,
-    [new Date().toISOString()]);
+  const novasTentativas = await todas(
+    `SELECT mlb_id, nome, proxima_tentativa, erro FROM ofertas
+     WHERE status_envio='PENDENTE' AND proxima_tentativa > ?${proj.sql}
+     ORDER BY proxima_tentativa LIMIT 10`,
+    [agora, ...proj.params],
+  );
 
-  const entregas = await todas(
-    `SELECT e.mlb_id, e.status, e.tentativa, e.id_externo, e.atualizado_em, o.nome
+  const recentes = await todas(
+    `SELECT e.mlb_id, e.status, e.atualizado_em, e.erro, o.nome
      FROM entregas e LEFT JOIN ofertas o ON o.mlb_id = e.mlb_id
-     ORDER BY e.atualizado_em DESC LIMIT 20`);
+     WHERE 1=1${condicaoProjeto(ctx, "e.perfil").sql}
+     ORDER BY e.atualizado_em DESC LIMIT 20`,
+    condicaoProjeto(ctx, "e.perfil").params,
+  );
 
-  const chip = (s: string) =>
-    s === "enviada" ? "bg-ok/15 text-ok" :
-    s === "falhou" ? "bg-erro/15 text-erro" : "bg-alerta/15 text-alerta";
+  const varios = !ctx.ativo && Object.keys(planos).length > 1;
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-xl font-semibold">Fila de publicação</h1>
-      <p className="mt-1 text-sm text-tinta2">O worker publica no ritmo do plano — o painel só observa e ordena.</p>
+      <CabecalhoPagina
+        titulo="Publicações"
+        descricao="O que está por sair e o que já foi publicado nos seus destinos."
+      />
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {Object.entries(planos).map(([perfil, p]) => (
-          <div key={perfil} className="rounded-xl border border-linha bg-carta p-5">
-            <p className="text-xs uppercase tracking-wider text-tinta2">{perfil}</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">
-              {enviadasHoje[perfil] ?? 0}<span className="text-tinta2">/{p.cota ?? "—"}</span>
-              <span className="ml-2 text-sm font-normal text-tinta2">hoje</span>
-            </p>
-            <p className="mt-1 text-xs text-tinta2">
-              janela {p.inicio != null ? hhmm(p.inicio) : "—"}–{p.fim != null ? hhmm(p.fim) : "—"}
-              {p.proximo ? ` · próximo envio ${String(p.proximo).slice(11, 16)}` : ""}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 rounded-xl border border-linha bg-carta p-5">
-        <p className="text-xs uppercase tracking-wider text-tinta2">
-          Próximas a sair <span className="normal-case">(ordem aproximada · clone fura a fila)</span>
-        </p>
-        <ul className="mt-3 grid gap-2 text-sm">
-          {proximas.map((o, i) => (
-            <li key={String(o.mlb_id)} className="flex items-baseline gap-2">
-              <span className="w-5 text-xs tabular-nums text-tinta2">{i + 1}.</span>
-              <span className="truncate">{String(o.nome)}</span>
-              {String(o.origem) === "clone" && (
-                <span className="shrink-0 rounded-full bg-carta2 px-2 text-[10px] text-tinta2">clone</span>)}
-              <span className="ml-auto shrink-0 text-xs text-acento">−{n(o.desconto_pct)}%</span>
-            </li>
+      {/* Ritmo de hoje */}
+      {Object.keys(planos).length > 0 && (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {Object.entries(planos).map(([slug, p]) => (
+            <Cartao key={slug} titulo={nomeDoProjeto(slug)}>
+              <p className="text-2xl font-semibold tabular-nums">
+                {enviadasHoje[slug] ?? 0}
+                <span className="text-tinta2">/{p.cota ?? "—"}</span>
+                <span className="ml-2 text-sm font-normal text-tinta2">
+                  publicações hoje
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-tinta2">
+                Janela de hoje:{" "}
+                {p.inicio != null ? horaDecimalParaHHMM(p.inicio) : "—"}–
+                {p.fim != null ? horaDecimalParaHHMM(p.fim) : "—"}
+                {p.proximo ? ` · próxima por volta de ${horaDe(p.proximo)}` : ""}
+              </p>
+            </Cartao>
           ))}
-        </ul>
-      </div>
-
-      {emEspera.length > 0 && (
-        <div className="mt-6 rounded-xl border border-linha bg-carta p-5">
-          <p className="text-xs uppercase tracking-wider text-alerta">Em espera de retry</p>
-          <ul className="mt-3 grid gap-2 text-sm">
-            {emEspera.map((o) => (
-              <li key={String(o.mlb_id)} className="flex items-baseline gap-2">
-                <span className="truncate">{String(o.nome)}</span>
-                <span className="ml-auto shrink-0 text-xs text-tinta2">
-                  tentativa {n(o.tentativas)} · volta {String(o.proxima_tentativa).slice(11, 16)}</span>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-linha bg-carta">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b border-linha text-left text-[11px] uppercase tracking-wider text-tinta2">
-            <th className="px-4 py-3">Entrega</th><th className="px-3 py-3">Status</th>
-            <th className="px-3 py-3">Tent.</th><th className="px-3 py-3">Quando</th>
-          </tr></thead>
-          <tbody>
-            {entregas.map((e) => (
-              <tr key={`${e.mlb_id}`} className="border-b border-linha/50">
-                <td className="max-w-sm truncate px-4 py-2">{String(e.nome ?? e.mlb_id)}</td>
-                <td className="px-3 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${chip(String(e.status))}`}>
-                    {String(e.status)}</span></td>
-                <td className="px-3 py-2 tabular-nums">{n(e.tentativa)}</td>
-                <td className="px-3 py-2 text-xs text-tinta2">
-                  {String(e.atualizado_em).slice(5, 16).replace("T", " ")}</td>
-              </tr>
+      {/* Próximas */}
+      <Cartao className="mt-4" titulo="Próximas publicações">
+        {proximas.length === 0 ? (
+          <EstadoVazio
+            compacto
+            titulo="Nada aguardando publicação"
+            descricao="Quando as fontes encontrarem novas ofertas, a fila aparece aqui na ordem de saída."
+          />
+        ) : (
+          <ul className="grid grid-cols-1 gap-2.5 text-sm">
+            {proximas.map((o, i) => (
+              <li
+                key={String(o.mlb_id)}
+                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-3"
+              >
+                <span className="w-6 text-right text-xs tabular-nums text-tinta3">
+                  {i + 1}.
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate">{String(o.nome)}</span>
+                  {(varios || String(o.origem) === "clone") && (
+                    <span className="mt-0.5 flex items-center gap-2 text-xs text-tinta3">
+                      {varios && <span>{nomeDoProjeto(o.perfil)}</span>}
+                      {String(o.origem) === "clone" && (
+                        <Selo tom="info" ponto={false}>
+                          Prioridade
+                        </Selo>
+                      )}
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs font-semibold tabular-nums text-acento">
+                  −{n(o.desconto_pct)}%
+                </span>
+              </li>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+        )}
+        <p className="mt-4 text-xs text-tinta3">
+          A ordem é aproximada — ofertas vindas do monitoramento saem primeiro.
+        </p>
+      </Cartao>
+
+      {/* Novas tentativas — só quando existem */}
+      {novasTentativas.length > 0 && (
+        <Cartao className="mt-4" titulo="Aguardando nova tentativa">
+          <ul className="grid grid-cols-1 gap-2.5 text-sm">
+            {novasTentativas.map((o) => (
+              <li
+                key={String(o.mlb_id)}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate">{String(o.nome)}</span>
+                  {motivoLegivel(o.erro) && (
+                    <span className="text-xs text-tinta3">{motivoLegivel(o.erro)}</span>
+                  )}
+                </span>
+                <span className="whitespace-nowrap text-xs text-tinta2">
+                  nova tentativa às {horaDe(o.proxima_tentativa)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Cartao>
+      )}
+
+      {/* Recentes */}
+      <Cartao className="mt-4" titulo="Publicações recentes">
+        {recentes.length === 0 ? (
+          <EstadoVazio
+            compacto
+            titulo="Nenhuma publicação registrada ainda"
+            descricao="O histórico de envios para os seus destinos aparece aqui."
+          />
+        ) : (
+          <ul className="grid grid-cols-1 gap-2.5 text-sm">
+            {recentes.map((e, i) => {
+              const st = statusEntrega(e.status);
+              return (
+                <li
+                  key={`${e.mlb_id}-${i}`}
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate">{String(e.nome ?? "Oferta")}</span>
+                    {st.tom === "erro" && motivoLegivel(e.erro) && (
+                      <span className="text-xs text-erro/80">{motivoLegivel(e.erro)}</span>
+                    )}
+                  </span>
+                  <Selo tom={st.tom}>{st.rotulo}</Selo>
+                  <span className="whitespace-nowrap text-xs tabular-nums text-tinta3">
+                    {dataCurta(e.atualizado_em)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Cartao>
     </div>
   );
 }

@@ -1,126 +1,264 @@
 import Link from "next/link";
 import { todas, uma } from "@/lib/dados";
+import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
+import { reais, dataCurta, statusOferta, origemOferta, motivoLegivel } from "@/lib/formatos";
+import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { Selo } from "@/components/ui/selo";
+import { Paginacao } from "@/components/ui/paginacao";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { CONTROLE } from "@/components/ui/campos";
 import { Acoes } from "./acoes";
 
 export const dynamic = "force-dynamic";
 
 const POR_PAGINA = 40;
 const n = (v: unknown) => Number(v ?? 0);
-const reais = (v: unknown) =>
-  v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 type Busca = { q?: string; status?: string; origem?: string; pagina?: string };
 
+function Filtro({ rotulo, ativo, href }: { rotulo: string; ativo: boolean; href: string }) {
+  return (
+    <Link
+      href={href}
+      aria-pressed={ativo}
+      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+        ativo
+          ? "border-acento/60 bg-acento/10 text-acento"
+          : "border-linha text-tinta2 hover:border-linha2 hover:text-tinta"
+      }`}
+    >
+      {rotulo}
+    </Link>
+  );
+}
+
+function Preco({ o }: { o: Record<string, unknown> }) {
+  return (
+    <div className="whitespace-nowrap tabular-nums">
+      {o.preco_original != null && (
+        <span className="text-xs text-tinta3 line-through">{reais(o.preco_original)}</span>
+      )}
+      <span className="ml-2 font-medium">{reais(o.preco_promocional)}</span>
+      <span className="ml-2 text-xs font-semibold text-acento">−{n(o.desconto_pct)}%</span>
+    </div>
+  );
+}
+
+function LinhaSecundaria({ o }: { o: Record<string, unknown> }) {
+  const st = statusOferta(o.status_envio, o.erro);
+  const motivo = st.rotulo === "Precisa de atenção" ? motivoLegivel(o.erro) : "";
+  return (
+    <p className="mt-0.5 truncate text-xs text-tinta3">
+      {origemOferta(o.origem)} · {dataCurta(o.criado_em)}
+      {String(o.marca ?? "") && <> · {String(o.marca)}</>}
+      {motivo && <span className="text-erro"> · {motivo}</span>}
+    </p>
+  );
+}
+
+/** Catálogo das oportunidades encontradas — busca, filtros e ações. */
 export default async function Ofertas({ searchParams }: { searchParams: Promise<Busca> }) {
   const b = await searchParams;
+  const ctx = await contextoProjeto();
+  const proj = condicaoProjeto(ctx);
   const pagina = Math.max(1, n(b.pagina) || 1);
 
   const cond: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (b.q) { cond.push("(nome LIKE ? OR marca LIKE ? OR mlb_id LIKE ?)");
-             params.push(`%${b.q}%`, `%${b.q}%`, `%${b.q}%`); }
-  if (b.status) { cond.push("status_envio = ?"); params.push(b.status); }
-  if (b.origem) { cond.push("origem = ?"); params.push(b.origem); }
-  const onde = cond.join(" AND ");
+  if (b.q) {
+    cond.push("(nome LIKE ? OR marca LIKE ? OR mlb_id LIKE ?)");
+    params.push(`%${b.q}%`, `%${b.q}%`, `%${b.q}%`);
+  }
+  if (b.status) {
+    cond.push("status_envio = ?");
+    params.push(b.status);
+  }
+  if (b.origem) {
+    cond.push("origem = ?");
+    params.push(b.origem);
+  }
+  const onde = cond.join(" AND ") + proj.sql;
+  const todosParams = [...params, ...proj.params];
 
-  const total = n((await uma(`SELECT COUNT(*) AS n FROM ofertas WHERE ${onde}`, params))?.n);
+  const total = n(
+    (await uma(`SELECT COUNT(*) AS n FROM ofertas WHERE ${onde}`, todosParams))?.n,
+  );
   const linhas = await todas(
-    `SELECT mlb_id, nome, marca, preco_original, preco_promocional, desconto_pct,
-            status_envio, origem, criado_em, enviado_em, link_afiliado, erro
+    `SELECT mlb_id, nome, marca, url, preco_original, preco_promocional, desconto_pct,
+            status_envio, origem, criado_em, erro
      FROM ofertas WHERE ${onde}
      ORDER BY criado_em DESC LIMIT ${POR_PAGINA} OFFSET ${(pagina - 1) * POR_PAGINA}`,
-    params);
-  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+    todosParams,
+  );
 
-  const chip = (s: string) =>
-    s === "ENVIADO" ? "bg-ok/15 text-ok" :
-    s === "ERRO" ? "bg-erro/15 text-erro" : "bg-alerta/15 text-alerta";
-
-  const filtro = (rot: string, chave: "status" | "origem", val: string) => {
-    const ativo = b[chave] === val;
+  const href = (mudancas: Partial<Busca>) => {
     const q = new URLSearchParams(
-      Object.entries({ ...b, [chave]: ativo ? "" : val, pagina: "" })
-        .filter(([, v]) => v) as [string, string][]);
-    return (
-      <Link key={rot} href={`/ofertas?${q}`}
-        className={`rounded-full border px-3 py-1 text-xs ${
-          ativo ? "border-acento text-acento" : "border-linha text-tinta2 hover:text-tinta"}`}>
-        {rot}
-      </Link>
-    );
+      Object.entries({ ...b, pagina: "", ...mudancas }).filter(([, v]) => v) as [
+        string,
+        string,
+      ][],
+    ).toString();
+    return q ? `/ofertas?${q}` : "/ofertas";
   };
+
+  const filtro = (chave: "status" | "origem", valor: string) => ({
+    ativo: (b[chave] ?? "") === valor,
+    href: href({ [chave]: (b[chave] ?? "") === valor ? "" : valor }),
+  });
+
+  const temFiltro = Boolean(b.q || b.status || b.origem);
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Ofertas</h1>
-          <p className="mt-1 text-sm text-tinta2">{total} no total · página {pagina}/{paginas}</p>
+      <CabecalhoPagina
+        titulo="Ofertas"
+        descricao={
+          ctx.ativo
+            ? `Oportunidades encontradas para ${ctx.ativo.nome}.`
+            : "Oportunidades encontradas para os seus projetos."
+        }
+        acoes={
+          <form action="/ofertas" className="flex gap-2">
+            {b.status && <input type="hidden" name="status" value={b.status} />}
+            {b.origem && <input type="hidden" name="origem" value={b.origem} />}
+            <label htmlFor="busca-ofertas" className="sr-only">
+              Buscar produto ou marca
+            </label>
+            <input
+              id="busca-ofertas"
+              name="q"
+              defaultValue={b.q ?? ""}
+              placeholder="Buscar produto ou marca…"
+              className={`${CONTROLE} w-56 md:w-64`}
+            />
+            <button className="rounded-lg bg-acento px-3 py-2 text-sm font-semibold text-fundo hover:bg-acento2">
+              Buscar
+            </button>
+          </form>
+        }
+      />
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2">
+        <span className="text-xs text-tinta3">Status</span>
+        <Filtro rotulo="Aguardando" {...filtro("status", "PENDENTE")} />
+        <Filtro rotulo="Publicadas" {...filtro("status", "ENVIADO")} />
+        <Filtro rotulo="Com problema" {...filtro("status", "ERRO")} />
+        <span aria-hidden className="mx-2 h-4 w-px bg-linha" />
+        <span className="text-xs text-tinta3">Origem</span>
+        <Filtro rotulo="Busca automática" {...filtro("origem", "busca")} />
+        <Filtro rotulo="Monitoramento" {...filtro("origem", "clone")} />
+        {temFiltro && (
+          <Link href="/ofertas" className="ml-1 text-xs text-tinta2 underline hover:text-tinta">
+            Limpar
+          </Link>
+        )}
+      </div>
+
+      {linhas.length === 0 ? (
+        <div className="mt-6">
+          <EstadoVazio
+            titulo={temFiltro ? "Nada por aqui com esses filtros" : "Nenhuma oferta ainda"}
+            descricao={
+              temFiltro
+                ? "Tente outra busca ou limpe os filtros."
+                : "Assim que as fontes do seu projeto encontrarem promoções, elas aparecem aqui."
+            }
+            acao={
+              temFiltro ? (
+                <Link href="/ofertas" className="text-sm text-acento hover:underline">
+                  Limpar filtros
+                </Link>
+              ) : undefined
+            }
+          />
         </div>
-        <form className="flex gap-2" action="/ofertas">
-          <input name="q" defaultValue={b.q ?? ""} placeholder="nome, marca ou MLB…"
-            className="w-64 rounded-lg border border-linha bg-carta2 px-3 py-1.5 text-sm outline-none focus:border-acento" />
-          <button className="rounded-lg bg-acento px-3 py-1.5 text-sm font-semibold text-fundo">
-            Buscar
-          </button>
-        </form>
-      </div>
+      ) : (
+        <>
+          {/* Tabela (≥md) — sem overflow horizontal: colunas controladas */}
+          <div className="mt-5 hidden rounded-xl border border-linha bg-carta md:block">
+            <table className="w-full table-fixed text-sm">
+              <thead>
+                <tr className="border-b border-linha text-left text-[11px] uppercase tracking-wider text-tinta2">
+                  <th className="sticky top-0 rounded-tl-xl bg-carta px-4 py-3">Oferta</th>
+                  <th className="sticky top-0 w-56 bg-carta px-3 py-3">Preço</th>
+                  <th className="sticky top-0 w-40 bg-carta px-3 py-3">Status</th>
+                  <th className="sticky top-0 w-40 rounded-tr-xl bg-carta px-3 py-3 text-right">
+                    Ações
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {linhas.map((o) => {
+                  const st = statusOferta(o.status_envio, o.erro);
+                  return (
+                    <tr key={String(o.mlb_id)} className="border-b border-linha/50 last:border-0">
+                      <td className="px-4 py-3">
+                        <p className="line-clamp-2 font-medium leading-snug">
+                          {String(o.url) ? (
+                            <a
+                              href={String(o.url)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:underline"
+                            >
+                              {String(o.nome)}
+                            </a>
+                          ) : (
+                            String(o.nome)
+                          )}
+                        </p>
+                        <LinhaSecundaria o={o} />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Preco o={o} />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Selo tom={st.tom}>{st.rotulo}</Selo>
+                      </td>
+                      <td className="px-3 py-3">
+                        <Acoes id={String(o.mlb_id)} status={String(o.status_envio)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {filtro("Pendentes", "status", "PENDENTE")}
-        {filtro("Enviadas", "status", "ENVIADO")}
-        {filtro("Com erro", "status", "ERRO")}
-        <span className="mx-1 text-linha">·</span>
-        {filtro("Clonadas", "origem", "clone")}
-        {filtro("Da busca", "origem", "busca")}
-      </div>
+          {/* Cartões (<md) */}
+          <ul className="mt-5 grid grid-cols-1 gap-3 md:hidden">
+            {linhas.map((o) => {
+              const st = statusOferta(o.status_envio, o.erro);
+              return (
+                <li key={String(o.mlb_id)} className="rounded-xl border border-linha bg-carta p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-snug">
+                      {String(o.nome)}
+                    </p>
+                    <span className="shrink-0">
+                      <Selo tom={st.tom}>{st.rotulo}</Selo>
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm">
+                    <Preco o={o} />
+                  </div>
+                  <LinhaSecundaria o={o} />
+                  <div className="mt-3">
+                    <Acoes id={String(o.mlb_id)} status={String(o.status_envio)} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
 
-      <div className="mt-5 overflow-x-auto rounded-xl border border-linha bg-carta">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-linha text-left text-[11px] uppercase tracking-wider text-tinta2">
-              <th className="px-4 py-3">Oferta</th>
-              <th className="px-3 py-3">Preço</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3">Origem</th>
-              <th className="px-3 py-3 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((o) => (
-              <tr key={String(o.mlb_id)} className="border-b border-linha/50 align-top">
-                <td className="max-w-md px-4 py-3">
-                  <p className="truncate font-medium">{String(o.nome)}</p>
-                  <p className="mt-0.5 text-xs text-tinta2">
-                    {String(o.marca) || "—"} · {String(o.mlb_id)} ·
-                    criada {String(o.criado_em).slice(5, 16).replace("T", " ")}
-                    {o.erro ? <span className="text-erro"> · {String(o.erro)}</span> : null}
-                  </p>
-                </td>
-                <td className="whitespace-nowrap px-3 py-3 tabular-nums">
-                  <span className="text-tinta2 line-through">{reais(o.preco_original)}</span>
-                  <span className="ml-2">{reais(o.preco_promocional)}</span>
-                  <span className="ml-2 text-acento">−{n(o.desconto_pct)}%</span>
-                </td>
-                <td className="px-3 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${chip(String(o.status_envio))}`}>
-                    {String(o.status_envio)}
-                  </span>
-                </td>
-                <td className="px-3 py-3 text-xs text-tinta2">{String(o.origem)}</td>
-                <td className="px-3 py-3 text-right">
-                  <Acoes id={String(o.mlb_id)} status={String(o.status_envio)} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 flex gap-2 text-sm">
-        {pagina > 1 && <Link className="text-acento" href={`/ofertas?${new URLSearchParams({ ...b, pagina: String(pagina - 1) } as Record<string, string>)}`}>← anterior</Link>}
-        {pagina < paginas && <Link className="ml-auto text-acento" href={`/ofertas?${new URLSearchParams({ ...b, pagina: String(pagina + 1) } as Record<string, string>)}`}>próxima →</Link>}
-      </div>
+          <Paginacao
+            total={total}
+            pagina={pagina}
+            porPagina={POR_PAGINA}
+            criarHref={(p) => href({ pagina: String(p) })}
+          />
+        </>
+      )}
     </div>
   );
 }
