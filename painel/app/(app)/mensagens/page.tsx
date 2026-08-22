@@ -1,34 +1,64 @@
 import { todas, uma } from "@/lib/dados";
+import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
+import { nomeDoProjeto } from "@/lib/projetos";
+import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { Editor } from "./editor";
 
 export const dynamic = "force-dynamic";
 
-export default async function Templates() {
-  const linhas = await todas("SELECT perfil, chave, valor FROM config ORDER BY perfil");
+/** Formato da publicação: chamadas, rodapé e estrutura — com preview. */
+export default async function Mensagens() {
+  const ctx = await contextoProjeto();
+  const proj = condicaoProjeto(ctx);
+
+  const linhas = await todas(
+    `SELECT perfil, chave, valor FROM config
+     WHERE chave IN ('mensagem','headlines')${proj.sql} ORDER BY perfil`,
+    proj.params,
+  );
   const porPerfil: Record<string, Record<string, unknown>> = {};
   for (const l of linhas) {
     porPerfil[String(l.perfil)] ??= {};
-    try { porPerfil[String(l.perfil)][String(l.chave)] = JSON.parse(String(l.valor)); } catch {}
+    try {
+      porPerfil[String(l.perfil)][String(l.chave)] = JSON.parse(String(l.valor));
+    } catch {}
   }
+
   // uma oferta real para o preview ficar honesto
   const amostra = await uma(
     `SELECT nome, marca, loja, loja_oficial, preco_original, preco_promocional,
             desconto_pct, condicao, link_afiliado
      FROM ofertas WHERE status_envio='ENVIADO' AND loja_oficial=1
-     ORDER BY enviado_em DESC LIMIT 1`);
+     ORDER BY enviado_em DESC LIMIT 1`,
+  );
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <h1 className="text-xl font-semibold">Templates & headlines</h1>
-      <p className="mt-1 text-sm text-tinta2">
-        Salvar aplica na <strong className="text-tinta">próxima mensagem</strong> do grupo — sem deploy, sem restart.
-      </p>
+    <div className="mx-auto max-w-6xl">
+      <CabecalhoPagina
+        titulo="Mensagens"
+        descricao="Como as suas publicações aparecem no grupo. Salvar vale a partir da próxima publicação."
+      />
+
       {Object.keys(porPerfil).length === 0 ? (
-        <p className="mt-8 text-sm text-alerta">Sem config semeada ainda — suba o worker uma vez.</p>
+        <div className="mt-6">
+          <EstadoVazio
+            titulo="Nenhum formato de mensagem ainda"
+            descricao="Assim que a automação do seu projeto iniciar pela primeira vez, o formato aparece aqui para você personalizar."
+          />
+        </div>
       ) : (
-        Object.entries(porPerfil).map(([perfil, cfg]) => (
-          <Editor key={perfil} perfil={perfil} cfg={cfg} amostra={amostra ?? {}} />
-        ))
+        <div className="mt-2">
+          {Object.entries(porPerfil).map(([perfil, cfg]) => (
+            <Editor
+              key={perfil}
+              perfil={perfil}
+              nomeProjeto={nomeDoProjeto(perfil)}
+              cfg={cfg}
+              amostra={amostra ?? {}}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

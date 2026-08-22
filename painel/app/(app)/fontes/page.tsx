@@ -1,69 +1,172 @@
+import Link from "next/link";
 import { todas } from "@/lib/dados";
-import { FormFontes } from "./form";
+import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
+import { nomeDoProjeto } from "@/lib/projetos";
+import { gruposDaConta, conexaoConfigurada } from "@/lib/whatsapp";
+import { dataCurta, reais, statusOferta } from "@/lib/formatos";
+import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { Cartao } from "@/components/ui/cartao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
+import { FormMonitoramento } from "./form";
 
 export const dynamic = "force-dynamic";
 
-async function gruposDaConta(): Promise<Array<{ jid: string; nome: string }>> {
-  const url = process.env.UAZAPI_URL, token = process.env.UAZAPI_TOKEN;
-  if (!url || !token) return [];
-  try {
-    const r = await fetch(`${url}/group/list`, {
-      headers: { token }, signal: AbortSignal.timeout(6000), cache: "no-store" });
-    const d = await r.json();
-    return (d.groups ?? []).map((g: Record<string, unknown>) =>
-      ({ jid: String(g.JID ?? ""), nome: String(g.Name ?? "") }));
-  } catch { return []; }
-}
+/** De onde as ofertas surgem: busca automática + monitoramento de grupos. */
+export default async function Fontes() {
+  const ctx = await contextoProjeto();
+  const proj = condicaoProjeto(ctx);
 
-export default async function Copiador() {
-  const cfgs = await todas("SELECT perfil, valor FROM config WHERE chave='clonador'");
-  const grupos = await gruposDaConta();
-  const clones = await todas(
-    `SELECT nome, marca, desconto_pct, preco_promocional, rival_nome, rival_preco,
-            status_envio, criado_em
-     FROM ofertas WHERE origem='clone' ORDER BY criado_em DESC LIMIT 15`);
+  const [cfgClonador, cfgRitmo, grupos] = await Promise.all([
+    todas(`SELECT perfil, valor FROM config WHERE chave='clonador'${proj.sql} ORDER BY perfil`, proj.params),
+    todas(`SELECT perfil, valor FROM config WHERE chave='ritmo'${proj.sql} ORDER BY perfil`, proj.params),
+    gruposDaConta(),
+  ]);
 
-  const reais = (v: unknown) => v == null ? "—"
-    : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const buscaPorPerfil = new Map(
+    cfgRitmo.map((l) => {
+      let horas: number[] = [];
+      try {
+        horas = (JSON.parse(String(l.valor)).busca_horas ?? []) as number[];
+      } catch {}
+      return [String(l.perfil), horas] as const;
+    }),
+  );
+
+  const oportunidades = await todas(
+    `SELECT nome, preco_promocional, desconto_pct, rival_preco, status_envio, erro, criado_em
+     FROM ofertas WHERE origem='clone'${proj.sql} ORDER BY criado_em DESC LIMIT 10`,
+    proj.params,
+  );
+
+  const semConexao = !conexaoConfigurada() || grupos.length === 0;
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <h1 className="text-xl font-semibold">Copiador</h1>
-      <p className="mt-1 text-sm text-tinta2">
-        Monitora grupos rivais, identifica o produto anunciado e o traz para a SUA fila
-        com o SEU link — reconstruído no seu template, nunca copiando a mídia deles.
-      </p>
+    <div className="mx-auto max-w-4xl">
+      <CabecalhoPagina
+        titulo="Fontes"
+        descricao="De onde as suas ofertas surgem: busca automática nas lojas e monitoramento de grupos."
+      />
 
-      {cfgs.map((c) => {
-        let cfg = {};
-        try { cfg = JSON.parse(String(c.valor)); } catch {}
-        return <FormFontes key={String(c.perfil)} perfil={String(c.perfil)}
-                 inicial={cfg} disponiveis={grupos} />;
-      })}
+      {/* Busca automática */}
+      <Cartao className="mt-6" titulo="Busca automática">
+        {cfgRitmo.length === 0 ? (
+          <EstadoVazio
+            compacto
+            titulo="Nenhum projeto configurado ainda"
+            descricao="Quando o seu projeto estiver ativo, a busca automática aparece aqui."
+          />
+        ) : (
+          <ul className="grid grid-cols-1 gap-3">
+            {cfgRitmo.map((l) => {
+              const slug = String(l.perfil);
+              const horas = buscaPorPerfil.get(slug) ?? [];
+              return (
+                <li key={slug} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <span className="font-medium">{nomeDoProjeto(slug)}</span>
+                  <Selo tom="ok">Ativa</Selo>
+                  <span className="text-tinta2">
+                    procura promoções{" "}
+                    {horas.length > 0
+                      ? `às ${horas.map((h) => `${String(h).padStart(2, "0")}:00`).join(", ")}`
+                      : "ao longo do dia"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="mt-3 text-xs text-tinta3">
+          Os horários de busca fazem parte do ritmo do projeto —{" "}
+          <Link href="/ritmo" className="text-tinta2 underline hover:text-tinta">
+            ajustar em Ritmo &amp; Regras
+          </Link>
+          .
+        </p>
+      </Cartao>
 
-      <div className="mt-8 rounded-xl border border-linha bg-carta p-5">
-        <p className="text-xs uppercase tracking-wider text-tinta2">Últimos clones</p>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-linha text-left text-[11px] uppercase tracking-wider text-tinta2">
-              <th className="py-2 pr-3">Produto</th><th className="py-2 pr-3">Rival anunciou</th>
-              <th className="py-2 pr-3">No nosso</th><th className="py-2">Status</th>
-            </tr></thead>
-            <tbody>
-              {clones.map((o, i) => (
-                <tr key={i} className="border-b border-linha/50">
-                  <td className="max-w-sm truncate py-2 pr-3">{String(o.nome)}</td>
-                  <td className="whitespace-nowrap py-2 pr-3 text-tinta2">
-                    {String(o.rival_nome || "—").slice(0, 28)} · {reais(o.rival_preco)}</td>
-                  <td className="whitespace-nowrap py-2 pr-3">
-                    {reais(o.preco_promocional)}
-                    <span className="ml-1 text-acento">−{Number(o.desconto_pct ?? 0)}%</span></td>
-                  <td className="py-2 text-xs">{String(o.status_envio)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Monitoramento */}
+      <div className="mt-4 grid grid-cols-1 gap-4">
+        <Cartao titulo="Monitoramento de grupos">
+          <p className="mb-4 text-sm text-tinta2">
+            A Afilify acompanha grupos escolhidos por você, identifica o produto
+            anunciado e traz a oferta para a SUA fila com o SEU link — a mensagem
+            é sempre reconstruída no seu formato.
+          </p>
+          {semConexao && (
+            <div className="mb-4">
+              <EstadoVazio
+                compacto
+                titulo="WhatsApp sem conexão no momento"
+                descricao="Conecte seu WhatsApp para listar grupos pelo nome e adicionar novos ao monitoramento."
+                acao={
+                  <Link href="/conexoes" className="text-sm text-acento hover:underline">
+                    Ver conexões →
+                  </Link>
+                }
+              />
+            </div>
+          )}
+          {cfgClonador.length === 0 ? (
+            <EstadoVazio
+              compacto
+              titulo="Nenhum projeto com monitoramento ainda"
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-6">
+              {cfgClonador.map((c) => {
+                let cfg = {};
+                try {
+                  cfg = JSON.parse(String(c.valor));
+                } catch {}
+                return (
+                  <FormMonitoramento
+                    key={String(c.perfil)}
+                    perfil={String(c.perfil)}
+                    nomeProjeto={nomeDoProjeto(c.perfil)}
+                    inicial={cfg}
+                    disponiveis={grupos}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </Cartao>
+
+        <Cartao titulo="Últimas oportunidades do monitoramento">
+          {oportunidades.length === 0 ? (
+            <EstadoVazio
+              compacto
+              titulo="Nenhuma oportunidade ainda"
+              descricao="Quando um grupo monitorado anunciar um produto que vale a pena, ele aparece aqui."
+            />
+          ) : (
+            <ul className="grid grid-cols-1 gap-2.5 text-sm">
+              {oportunidades.map((o, i) => {
+                const st = statusOferta(o.status_envio, o.erro);
+                return (
+                  <li
+                    key={i}
+                    className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate">{String(o.nome)}</span>
+                      <span className="text-xs text-tinta3">
+                        {o.rival_preco != null && <>visto por {reais(o.rival_preco)} · </>}
+                        no seu link por {reais(o.preco_promocional)} (−
+                        {Number(o.desconto_pct ?? 0)}%)
+                      </span>
+                    </span>
+                    <Selo tom={st.tom}>{st.rotulo}</Selo>
+                    <span className="whitespace-nowrap text-xs tabular-nums text-tinta3">
+                      {dataCurta(o.criado_em)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Cartao>
       </div>
     </div>
   );

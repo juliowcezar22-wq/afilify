@@ -1,47 +1,151 @@
 "use client";
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { Botao } from "@/components/ui/botao";
+import { CONTROLE } from "@/components/ui/campos";
+import { Selo } from "@/components/ui/selo";
+import { DetalhesTecnicos } from "@/components/ui/detalhes-tecnicos";
 
-export function SeletorDestino({ perfil, atual, grupos, enviadasHoje }: {
-  perfil: string; atual: string;
-  grupos: Array<{ jid: string; nome: string }>; enviadasHoje: number;
+type Grupo = { jid: string; nome: string };
+
+/**
+ * Destino do projeto: mostra o grupo em uso e permite trocar com busca e
+ * confirmação explícita. Grava a chave `canal` (contrato do motor).
+ */
+export function SeletorDestino({
+  perfil,
+  nomeProjeto,
+  atual,
+  grupos,
+  enviadasHoje,
+}: {
+  perfil: string;
+  nomeProjeto: string;
+  atual: string;
+  grupos: Grupo[];
+  enviadasHoje: number;
 }) {
-  const [destino, setDestino] = useState(atual);
-  const [aviso, setAviso] = useState("");
-  const nome = grupos.find((g) => g.jid === destino)?.nome ?? destino;
+  const idBusca = useId();
+  const [busca, setBusca] = useState("");
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [aviso, setAviso] = useState<{ tom: "ok" | "erro"; texto: string } | null>(null);
+  const [emUso, setEmUso] = useState(atual);
 
-  async function salvar() {
-    if (destino !== atual &&
-        !confirm(`Trocar o destino de "${perfil}" para "${nome}"?\n` +
-                 "As PRÓXIMAS mensagens irão para o grupo novo.")) return;
-    setAviso("salvando…");
+  const nomeDe = (jid: string) =>
+    grupos.find((g) => g.jid === jid)?.nome || (jid ? `Grupo …${jid.split("@")[0].slice(-4)}` : "");
+
+  const resultados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    const lista = grupos.filter((g) => g.jid !== emUso);
+    if (!q) return lista.slice(0, 6);
+    return lista.filter((g) => g.nome.toLowerCase().includes(q)).slice(0, 8);
+  }, [busca, grupos, emUso]);
+
+  async function usar(jid: string) {
+    setSalvando(true);
+    setAviso(null);
     const r = await fetch("/api/config", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ perfil, chave: "canal", valor: { grupo: destino } }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ perfil, chave: "canal", valor: { grupo: jid } }),
     });
-    setAviso(r.ok ? "✓ salvo — próxima mensagem já vai para o destino novo"
-                  : `erro: ${(await r.json()).erro}`);
+    if (r.ok) {
+      setEmUso(jid);
+      setConfirmando(null);
+      setAviso({
+        tom: "ok",
+        texto: "Destino atualizado — as próximas publicações já vão para o grupo novo.",
+      });
+    } else {
+      setAviso({
+        tom: "erro",
+        texto: String((await r.json()).erro ?? "não foi possível trocar o destino"),
+      });
+    }
+    setSalvando(false);
   }
 
   return (
-    <section className="mt-6 rounded-xl border border-linha bg-carta p-6">
+    <div>
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-xs uppercase tracking-wider text-acento">{perfil}</p>
-        <span className="ml-auto text-xs text-tinta2">{enviadasHoje} entrega(s) hoje neste destino</span>
+        <p className="text-sm font-medium">{nomeProjeto}</p>
+        <span className="text-xs text-tinta3">
+          {enviadasHoje} {enviadasHoje === 1 ? "publicação hoje" : "publicações hoje"} neste destino
+        </span>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <select value={destino} onChange={(e) => setDestino(e.target.value)}
-          className="min-w-72 flex-1 rounded-lg border border-linha bg-carta2 px-3 py-2 text-sm outline-none focus:border-acento">
-          {!grupos.some((g) => g.jid === destino) && destino && (
-            <option value={destino}>{destino} (fora da conta?)</option>)}
-          {grupos.map((g) => (
-            <option key={g.jid} value={g.jid}>{g.nome} · {g.jid}</option>))}
-        </select>
-        <button onClick={salvar}
-          className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-fundo">
-          Salvar destino
-        </button>
-        <span className="text-xs text-tinta2">{aviso}</span>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-linha bg-carta2 px-3 py-2.5">
+        <span className="min-w-0 truncate text-sm font-medium">
+          {emUso ? nomeDe(emUso) : "Nenhum destino escolhido"}
+        </span>
+        {emUso && <Selo tom="ok">Em uso</Selo>}
       </div>
-    </section>
+
+      <div className="mt-4">
+        <label htmlFor={idBusca} className="mb-1 block text-xs font-medium text-tinta2">
+          Trocar destino — buscar grupo por nome
+        </label>
+        <input
+          id={idBusca}
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Digite o nome do grupo…"
+          className={`${CONTROLE} w-full`}
+        />
+        {resultados.length > 0 && (
+          <ul className="mt-2 grid grid-cols-1 gap-1.5">
+            {resultados.map((g) => (
+              <li
+                key={g.jid}
+                className="flex items-center gap-3 rounded-lg border border-linha px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate">{g.nome || nomeDe(g.jid)}</span>
+                <span className="ml-auto flex shrink-0 items-center gap-2">
+                  {confirmando === g.jid ? (
+                    <>
+                      <span className="text-xs text-tinta2">
+                        As próximas publicações vão para este grupo.
+                      </span>
+                      <Botao tamanho="sm" disabled={salvando} onClick={() => usar(g.jid)}>
+                        {salvando ? "Trocando…" : "Confirmar"}
+                      </Botao>
+                      <Botao
+                        variante="fantasma"
+                        tamanho="sm"
+                        onClick={() => setConfirmando(null)}
+                      >
+                        Cancelar
+                      </Botao>
+                    </>
+                  ) : (
+                    <Botao
+                      variante="secundario"
+                      tamanho="sm"
+                      onClick={() => {
+                        setConfirmando(g.jid);
+                        setAviso(null);
+                      }}
+                    >
+                      Usar este grupo
+                    </Botao>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {busca && resultados.length === 0 && (
+          <p className="mt-2 text-sm text-tinta3">Nenhum grupo com esse nome.</p>
+        )}
+      </div>
+
+      {aviso && (
+        <p role="status" className={`mt-3 text-sm ${aviso.tom === "ok" ? "text-ok" : "text-erro"}`}>
+          {aviso.texto}
+        </p>
+      )}
+
+      <DetalhesTecnicos itens={[["identificador do destino", emUso]]} />
+    </div>
   );
 }

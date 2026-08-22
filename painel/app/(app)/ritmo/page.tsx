@@ -1,36 +1,55 @@
 import { todas } from "@/lib/dados";
+import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
+import { nomeDoProjeto } from "@/lib/projetos";
+import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { Cartao } from "@/components/ui/cartao";
+import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { FormRitmo } from "./form";
-import { FormTracking } from "./tracking";
 
 export const dynamic = "force-dynamic";
 
-export default async function Config() {
+/** Ritmo & Regras por projeto. Configurações da conta ficam em /configuracoes. */
+export default async function Ritmo() {
+  const ctx = await contextoProjeto();
+  const proj = condicaoProjeto(ctx);
   const linhas = await todas(
-    "SELECT perfil, valor FROM config WHERE chave = 'ritmo' ORDER BY perfil");
-  const tracking = await todas(
-    "SELECT perfil, valor FROM config WHERE chave = 'tracking' ORDER BY perfil");
+    `SELECT perfil, valor FROM config WHERE chave = 'ritmo'${proj.sql} ORDER BY perfil`,
+    proj.params,
+  );
+
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="text-xl font-semibold">Configurações do ritmo</h1>
-      <p className="mt-1 text-sm text-tinta2">
-        Cota, janela e coletas por projeto. Cota e janela novas valem a partir do
-        <strong className="text-tinta"> plano de amanhã</strong>; coletas, validade e
-        proporção valem imediatamente.
-      </p>
+    <div className="mx-auto max-w-3xl">
+      <CabecalhoPagina
+        titulo="Ritmo & Regras"
+        descricao="Quanto e quando cada projeto publica. Quantidade e janela novas valem a partir de amanhã; o restante, imediatamente."
+      />
+
       {linhas.length === 0 ? (
-        <p className="mt-8 text-sm text-alerta">Sem ritmo semeado — suba o worker uma vez.</p>
+        <div className="mt-6">
+          <EstadoVazio
+            titulo="Nenhum ritmo configurado ainda"
+            descricao="Assim que a automação do seu projeto iniciar pela primeira vez, o ritmo aparece aqui para você ajustar."
+          />
+        </div>
       ) : (
-        linhas.map((l) => {
-          let cfg = {};
-          try { cfg = JSON.parse(String(l.valor)); } catch {}
-          return <FormRitmo key={String(l.perfil)} perfil={String(l.perfil)} inicial={cfg} />;
-        })
+        <div className="mt-6 grid grid-cols-1 gap-4">
+          {linhas.map((l) => {
+            let cfg = {};
+            try {
+              cfg = JSON.parse(String(l.valor));
+            } catch {}
+            return (
+              <Cartao key={String(l.perfil)}>
+                <FormRitmo
+                  perfil={String(l.perfil)}
+                  nomeProjeto={nomeDoProjeto(l.perfil)}
+                  inicial={cfg}
+                />
+              </Cartao>
+            );
+          })}
+        </div>
       )}
-      {tracking.map((l) => {
-        let cfg = {};
-        try { cfg = JSON.parse(String(l.valor)); } catch {}
-        return <FormTracking key={String(l.perfil)} perfil={String(l.perfil)} inicial={cfg} />;
-      })}
     </div>
   );
 }
