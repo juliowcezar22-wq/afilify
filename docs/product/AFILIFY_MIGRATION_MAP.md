@@ -19,9 +19,9 @@
 
 - `painel/components/shell/` — Sidebar, NavMovel (drawer), SeletorProjeto,
   Topbar.
-- `painel/components/ui/` — Botao, Cartao, Selo (badge), CampoTexto,
-  CampoSelecao, EstadoVazio, CabecalhoPagina, Indicador (stat), Paginacao,
-  DetalhesTecnicos.
+- `painel/components/ui/` — Botao, Cartao, Selo (badge), EstadoVazio,
+  CabecalhoPagina, Indicador (stat), Paginacao, DetalhesTecnicos, Icone,
+  SemDados, e a classe `CONTROLE` (inputs/selects com label próprio).
 - `painel/lib/projetos.ts` — nomes amigáveis, cookie de projeto ativo.
 - `painel/lib/formatos.ts` — datas pt-BR relativas, moeda, hora decimal↔HH:MM,
   rótulos de status/origem.

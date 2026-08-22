@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- Ferramenta de QA (temporária): mede overflow horizontal real de uma
+     rota em uma largura simulada. Uso: /qa-wrap.html?rota=/ofertas&w=390
+     Nota: o shell tem overflow-hidden, então scrollWidth do documento
+     mente — medimos rect.right de cada elemento. -->
+<meta charset="utf-8" />
+<body style="margin:0;background:#dc2626;color:#fff;font:12px monospace">
+  <div id="info" style="padding:8px;background:#222">carregando…</div>
+  <iframe id="f" style="border:0;display:block"></iframe>
+  <script>
+    const p = new URLSearchParams(location.search);
+    const rota = p.get("rota") || "/";
+    const w = parseInt(p.get("w") || "390", 10);
+    const f = document.getElementById("f");
+    f.style.width = w + "px";
+    f.style.height = "1300px";
+    f.src = rota;
+    f.onload = () => {
+      if (p.get("acao") === "drawer") {
+        let tentativas = 0;
+        const abrir = setInterval(() => {
+          const d2 = f.contentDocument;
+          const jaAberto = d2.querySelector('[role="dialog"]');
+          if (jaAberto || ++tentativas > 20) return clearInterval(abrir);
+          d2.querySelector('button[aria-label="Abrir menu"]')?.click();
+        }, 700);
+      }
+      setTimeout(() => {
+        const d = f.contentDocument;
+        let culpados = [];
+        for (const el of d.querySelectorAll("body *")) {
+          const r = el.getBoundingClientRect();
+          if (r.right > w + 1) {
+            culpados.push([Math.round(r.right), el.tagName + "." + String(el.className).split(" ").slice(0, 4).join(".")]);
+          }
+        }
+        culpados.sort((a, b) => b[0] - a[0]);
+        const maxR = culpados.length ? culpados[0][0] : w;
+        const sel = p.get("sel");
+        if (sel) {
+          let alvo = d.querySelector(sel);
+          culpados = [];
+          while (alvo && alvo.tagName !== "HTML") {
+            const r = alvo.getBoundingClientRect();
+            culpados.push([
+              Math.round(r.width),
+              alvo.tagName + "[right=" + Math.round(r.right) + "]." +
+                String(alvo.className).split(" ").slice(0, 5).join("."),
+            ]);
+            alvo = alvo.parentElement;
+          }
+        }
+        const info = document.getElementById("info");
+        info.textContent =
+          "rota=" + rota + " vw=" + w + " maxRight=" + maxR +
+          (maxR > w + 1 ? " ESTOUROU (" + culpados.length + " els)" : " OK") +
+          culpados.slice(0, 8).map((c) => "\n" + c[0] + " " + c[1]).join("");
+        info.style.background = maxR > w + 1 ? "#7f1d1d" : "#14532d";
+        info.style.whiteSpace = "pre-wrap";
+      }, 1500);
+    };
+  </script>
+</body>

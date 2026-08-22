@@ -5,62 +5,64 @@
 
 ## Estado atual
 
-- **Milestone atual:** M2 — Design System (M0 e M1 concluídos)
-- **Executando agora:** tokens + componentes UI compartilhados
+- **Milestone atual:** M16/M17 — verificação final, auditoria adversarial e relatório
 - **Worktree:** `/Users/juliocesar/Downloads/afilify-saas-redesign` · branch `feat/afilify-saas-redesign` · base `a456fba` (main)
-- **Regra:** nenhum arquivo do motor Python é modificado (D1); sem push/merge/deploy.
+- **Regra:** nenhum arquivo do motor Python modificado (D1); sem push/merge/deploy.
 
 ## Feito
 
-- M0 completo: worktree isolado; auditoria de todas as páginas do painel,
-  APIs, lib de dados, schema e contratos do motor (config dinâmica, estado,
-  entregas, headlines/mensagem, ritmo em hora decimal, clonador, canal,
-  tracking). Docs criados:
-  - docs/product/AFILIFY_PRODUCT_ARCHITECTURE.md
-  - docs/product/AFILIFY_UI_REDESIGN_PLAN.md
-  - docs/product/AFILIFY_DECISIONS.md (D1–D16)
-  - docs/product/AFILIFY_MIGRATION_MAP.md
-- Baseline: `pnpm build` OK (todas rotas atuais compilam); `pnpm lint` com
-  5 erros pré-existentes (analytics Date.now purity, config/form Par em
-  render, dashboard purity…) — todos em arquivos que serão reescritos;
-  `tsc --noEmit` requer `next typegen` antes (LayoutProps).
+- **M0–M1**: worktree, auditoria completa, docs base, harness testado
+  (commit `c4a3768`).
+- **M2 Design system**: tokens em `globals.css` (superfícies, tinta 1–3 com
+  contraste AA, acento, focus-visible global); componentes em
+  `painel/components/ui/` (Botao, Cartao, Selo, EstadoVazio,
+  CabecalhoPagina, Indicador, Paginacao, DetalhesTecnicos, Icone, SemDados,
+  CONTROLE); libs `formatos.ts` (datas pt-BR, moeda, hora decimal↔HH:MM,
+  tradução de status/origem), `projetos.ts` (slug→nome), `contexto.ts`
+  (projeto ativo por cookie), `whatsapp.ts` (grupos, máscara de id).
+- **M3 Shell**: sidebar fixa com scroll próprio (bug do scroll resolvido no
+  layout), navegação agrupada com ícones e aria-current, seletor de projeto
+  (cookie via `/api/projeto`, testado), drawer mobile acessível (validado
+  em screenshot com foco visível), redirects 308 das 6 rotas antigas
+  (testados via curl), /logs fora da navegação.
+- **M4–M13**: todas as páginas reescritas em linguagem de produto —
+  Dashboard, Ofertas (tabela ≥md + cartões <md), Publicações, Fontes,
+  Destinos, Mensagens (preview WhatsApp + biblioteca de chamadas + modo
+  avançado), Ritmo & Regras (HH:MM na borda, chips de horários, avançado),
+  Conexões (estados por conta, plataformas futuras honestas), Desempenho
+  (período 7/14/30), Configurações (tracking movido, D7), Ajuda, Logs
+  ("Registro técnico" com aviso).
+- **M14 Responsividade**: overflow horizontal medido elemento a elemento em
+  TODAS as rotas a 390px (OK) + screenshots 768/1280/1440. Causa-raiz
+  documentada na D19 (grid sem template ⇒ grid-cols-1 em todo empilhador).
+- **M15 Acessibilidade**: focus-visible global, labels (htmlFor/sr-only) em
+  todos os controles, Selo sempre com texto (não só cor), headings
+  hierárquicos, aria-current/pressed/expanded, focus trap + Escape no
+  drawer, contraste ≥4.5:1 (tinta3 ajustada).
+- **M16 (parcial)**: 87 testes Python OK; check-linguagem zero ocorrências;
+  console limpo nas 10 páginas; QA visual concluído. Falta: rodar
+  `verify-redesign.sh` completo ao final.
 
-## Decisões-chave (detalhe em AFILIFY_DECISIONS.md)
+## QA — como reproduzir
 
-D1 frontend-only · D2 projeto=perfil com nomes amigáveis em lib/projetos.ts
-· D5 rotas novas + redirects 308 · D6 hora decimal convertida na borda
-· D8 template avançado colapsado · D12 frequência em presets · D13 sem QR
-nesta fase · D16 empty states sem conexão.
+- Fixture: `scratchpad/qa/fixture.py` → SQLite de teste (NUNCA o banco real).
+- Mock WhatsApp: `scratchpad/qa/mock-uazapi.py` (porta 3106).
+- Painel QA: `SQLITE_PATH=<fixture> UAZAPI_URL=http://127.0.0.1:3106
+  UAZAPI_TOKEN=qa pnpm start -p 3105`.
+- Overflow/drawer: copiar `scripts/harness/qa-wrap.html` para
+  `painel/public/` e abrir `/qa-wrap.html?rota=/ofertas&w=390[&acao=drawer]`.
+- Console: Chrome headless `--enable-logging=stderr` (grep CONSOLE).
+- Limitação de tooling documentada: Chrome headless tem largura mínima de
+  janela de 500px e composita iframes cross-origin sem clip — usar o
+  wrapper same-origin para larguras móveis.
 
 ## Blockers
 
-- Nenhum blocker real no momento. Painel do worktree roda sem env (mostra
-  estados vazios); QA com dados usa fixture SQLite própria (nunca o banco
-  real da operação no Mac).
+- Nenhum.
 
 ## Próximo passo
 
-1. M2: tokens em globals.css + componentes components/ui/.
-2. M3: App Shell (sidebar fixa, drawer mobile, seletor de projeto,
-   redirects) — testar com fixture SQLite própria.
-
-## Harness (M1 — concluído e testado)
-
-- `scripts/harness/fast-check.sh` lint+typecheck · `verify-redesign.sh`
-  full check (build, linguagem, motor intocado, tasks) grava marcador
-  `.harness/last-verify-ok` · `check-linguagem.sh` termos proibidos
-  (exceção pontual: marcar linha com `harness-ok`) · `stop-guard.sh` Stop
-  hook (bloqueia com tasks abertas/verificação velha; anti-loop após 2
-  bloqueios sem mudança) · `task-check.sh` TaskCompleted hook.
-- Hooks em `.claude/settings.json`. Testes: bloqueio exit 2 ✓, anti-loop ✓,
-  sucesso exit 0 ✓, check-linguagem detecta legado ✓. Nota: hooks novos só
-  carregam em sessão nova do Claude Code — nesta sessão a disciplina é
-  rodar os scripts manualmente a cada tarefa/milestone.
-
-## Testes executados até agora
-
-- pnpm lint / next typegen + tsc / pnpm build (baseline — ver acima).
-
-## Arquivos principais alterados até agora
-
-- Somente docs/ e arquivos de tasks/progress (nenhum código ainda).
+1. Commits atômicos por área (design system → shell → operação → automação
+   → conta/analytics).
+2. Auditoria adversarial (Parte 28) + correções.
+3. `verify-redesign.sh` completo; relatório final (Parte 29); fechar TASKS.

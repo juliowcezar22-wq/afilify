@@ -101,3 +101,30 @@ vem vazia. Destinos/Fontes mostram empty state honesto ("Conecte seu
 WhatsApp para listar os grupos") + o destino já configurado (JID) com
 nome mascarado "Grupo …NNNN" quando o nome não é resolvível. Reversível:
 total.
+
+## 2026-08-22 · D17 — Sem página "Projetos" nesta fase
+A sidebar recomendada listava "Projetos" em GERAL. Como não existe CRUD de
+projetos no backend (perfis são arquivos), uma página só-leitura duplicaria
+o seletor do shell. O contexto de projeto vive no seletor; a página
+Projetos entra como FUTURO junto com o cadastro real. Reversível: sim.
+
+## 2026-08-22 · D18 — Linha da loja fica no Modo avançado
+Complemento à D8: o campo "linha da loja oficial" contém o token `{loja}`;
+mantê-lo no fluxo comum exigiria sintaxe técnica. Fluxo comum = biblioteca
+de chamadas + rodapé + preview; estrutura e linha da loja moram no Modo
+avançado. Reversível: total.
+
+## 2026-08-22 · D19 — Ferramenta de QA visual própria
+`scripts/harness/qa-wrap.html`: wrapper same-origin que emula larguras
+móveis (Chrome headless tem janela mínima de 500px), mede overflow real
+por getBoundingClientRect e aciona o drawer. Uso: copiar para
+`painel/public/` durante o QA local (nunca commitá-lo em public/).
+Aprendizado registrado: contêineres `grid` sem template explícito
+dimensionam a coluna pelo min-content dos filhos (texto nowrap/line-clamp
+= largura do texto inteiro) — todo empilhador usa `grid-cols-1`.
+
+## 2026-08-22 · D20 — "Agora" da fila no fuso da operação
+O motor grava timestamps locais sem offset; o painel legado comparava
+`proxima_tentativa` com `new Date().toISOString()` (UTC, 3h de erro).
+`agoraLocalISO()` compara no fuso America/Sao_Paulo. Comportamento
+corrigido — melhora real, sem mudança de contrato.
