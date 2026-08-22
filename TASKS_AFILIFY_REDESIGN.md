@@ -110,13 +110,13 @@ Marcar `[x]` somente com o critério de aceitação verificado.
 - [x] Contraste: texto secundário e selos ≥ 4.5:1 sobre as superfícies usadas
 
 ## M16 — Regression & QA final
-- [ ] `verify-redesign.sh` completo passa (lint, typecheck, build, tasks)
+- [x] `verify-redesign.sh` completo passa (lint, typecheck, build, linguagem, motor intocado)
 - [x] Testes Python continuam passando (87 OK; diff do motor vs main vazio)
 - [x] QA visual das telas nos 4 breakpoints (Chrome headless + medição de overflow via scripts/harness/qa-wrap.html)
 - [x] Grep de linguagem proibida na UI (worker, Postgres, Uazapi, JID, deploy, restart, LOG_PATH, slug de perfil, hora decimal) — zero ocorrências voltadas ao usuário (check-linguagem.sh)
 - [x] Console do browser sem erros nas 10 telas validadas (Chrome headless --enable-logging)
 
 ## M17 — Final
-- [ ] Auditoria adversarial (Parte 28) executada e correções aplicadas
-- [ ] `docs/product/AFILIFY_REDESIGN_FINAL_REPORT.md` completo (Parte 29)
-- [ ] PROGRESS atualizado; commits atômicos; `git status` limpo; sem push/merge
+- [x] Auditoria adversarial (Parte 28) executada — revisão multi-ângulo, 15 findings corrigidos (D23), 2 refutados com evidência
+- [x] `docs/product/AFILIFY_REDESIGN_FINAL_REPORT.md` completo (Parte 29)
+- [x] PROGRESS atualizado; commits atômicos; `git status` limpo; sem push/merge
