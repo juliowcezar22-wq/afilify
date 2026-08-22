@@ -1,7 +1,8 @@
-# Afilify — painel Next.js (standalone). BUILDAR FORA DA VPS (1 vCPU):
-#   docker build -f deploy/Dockerfile.painel -t afilify-painel .
-#   docker save afilify-painel | ssh vps docker load
-FROM node:22-alpine AS build
+# Afilify — painel Next.js.
+# Sem modo standalone: o output-file-tracing do Next + pnpm perde o
+# @swc/helpers (MODULE_NOT_FOUND no boot) — bug visto no Mac E na VPS.
+# Imagem maior, porém idêntica ao que roda comprovadamente em dev.
+FROM node:22-alpine
 WORKDIR /app
 # better-sqlite3 compila módulo nativo no install — alpine não traz toolchain
 RUN apk add --no-cache python3 make g++
@@ -9,13 +10,7 @@ RUN corepack enable
 COPY painel/package.json painel/pnpm-lock.yaml painel/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY painel/ .
-RUN STANDALONE=1 pnpm build
-
-FROM node:22-alpine
-WORKDIR /app
+RUN pnpm build
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
-COPY --from=build /app/public ./public
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["pnpm", "start", "-p", "3000"]
