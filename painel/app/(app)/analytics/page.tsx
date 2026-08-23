@@ -43,7 +43,7 @@ export default async function Analytics() {
              AND enviado_em >= ?
            GROUP BY hora ORDER BY hora`, [corte]),
     todas(`SELECT marca, COUNT(*) n,
-                  ROUND(AVG(desconto_pct)) desc_medio
+                  AVG(desconto_pct) desc_medio
            FROM ofertas WHERE status_envio='ENVIADO' AND marca != ''
              AND enviado_em >= ?
            GROUP BY marca ORDER BY n DESC LIMIT 12`, [corte]),
@@ -53,8 +53,8 @@ export default async function Analytics() {
            GROUP BY origem`, [corte]),
     todas(`SELECT COUNT(*) total,
                   COUNT(DISTINCT substr(enviado_em,1,10)) dias,
-                  ROUND(AVG(desconto_pct)) desc_medio,
-                  ROUND(AVG(preco_promocional),2) ticket
+                  AVG(desconto_pct) desc_medio,
+                  AVG(preco_promocional) ticket
            FROM ofertas WHERE status_envio='ENVIADO'
              AND enviado_em >= ?`, [corte]),
   ]);
@@ -73,7 +73,7 @@ export default async function Analytics() {
     ["publicadas (14d)", fmt(total)],
     ["média por dia", fmt(Math.round(total / Math.max(1, Number(k.dias ?? 1))))],
     ["vindas do copiador", total ? `${Math.round((clones / total) * 100)}%` : "—"],
-    ["desconto médio", k.desc_medio ? `${k.desc_medio}%` : "—"],
+    ["desconto médio", k.desc_medio ? `${Math.round(Number(k.desc_medio))}%` : "—"],
     ["ticket médio", k.ticket ? `R$ ${Number(k.ticket).toFixed(2)}` : "—"],
     ["cliques rastreados", cliques ? fmt(cliques) : "—"],
   ];
@@ -128,7 +128,7 @@ export default async function Analytics() {
           <h2 className="text-sm font-semibold">Top marcas publicadas</h2>
           <Barras dados={marcas.map((m) => ({
             rotulo: String(m.marca), valor: Number(m.n),
-            extra: `· ${m.desc_medio}%` }))} />
+            extra: `· ${Math.round(Number(m.desc_medio))}%` }))} />
         </section>
       </div>
     </div>
