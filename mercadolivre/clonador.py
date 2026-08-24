@@ -235,7 +235,8 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
         aviso("BLOCO 4 — uazapi não configurado")
         return 0
 
-    info(f"BLOCO 4 — monitorando {len(cfg['grupos'])} grupo(s) rival(is)")
+    # só fala quando tem novidade — a cada 3min isto poluía o log e a
+    # página Logs do painel (2 linhas por varredura vazia)
     corte_ms = (agora() - timedelta(minutes=cfg['janela_min'])).timestamp() * 1000
     novas = 0
 
@@ -306,5 +307,6 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
             con.commit()
             gravar_estado(con, chave, ",".join(vistos_agora[:60]))
 
-    ok(f"BLOCO 4 — {novas} oferta(s) do rival na fila")
+    if novas:
+        ok(f"BLOCO 4 — {novas} oferta(s) do rival na fila")
     return novas

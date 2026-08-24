@@ -204,6 +204,13 @@ MERCADOLIVRE = {
         "perfume feminino 100ml", "perfume arabe 100ml",
         "perfume masculino", "perfume feminino", "perfume arabe",
         "perfume natura", "boticario", "eudora",
+        # busca dirigida por marca: acha muito mais anúncio das casas já
+        # aprovadas — o filtro de marcas segue de porteiro na entrada.
+        "lattafa", "armaf", "maison alhambra", "afnan perfume",
+        "al haramain", "rasasi", "al wataniah", "orientica",
+        "bharara", "ard al zaafaran", "perfume malbec",
+        "natura essencial", "natura kaiak", "boticario lily",
+        "boticario egeo", "eudora impression",
     ],
 }
 SHOPEE = {
