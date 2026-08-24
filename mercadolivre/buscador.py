@@ -682,6 +682,8 @@ def galeria_do_produto(url: str) -> list[str]:
 
 def foto_para_envio(linha: sqlite3.Row) -> str:
     """A imagem que vai no WhatsApp, conforme FOTO_ESTRATEGIA."""
+    if "clone_imagem" in linha.keys() and linha["clone_imagem"]:
+        return linha["clone_imagem"]      # clone literal: a foto que o rival mandou
     padrao = linha["imagem"]
     if FOTO_ESTRATEGIA != "galeria" or FOTO_INDICE_GALERIA <= 0:
         return padrao

@@ -40,8 +40,8 @@ from nucleo.comum import (
     mensagens_do_grupo, uazapi_configurado,
 )
 from mercadolivre.buscador import (
-    baixar_busca, contexto_da_busca, extrair_ofertas_json, normalizar,
-    salvar_oferta,
+    RE_ID_ANUNCIO, baixar_busca, contexto_da_busca, extrair_ofertas_json,
+    filtrar_marca, normalizar, salvar_oferta,
 )
 
 # BLOCO 4 — MONITOR DA CONCORRÊNCIA
@@ -147,7 +147,70 @@ def abrir_link_rival(link: str) -> dict:
     if m_i:
         m_p = RE_ID_FOTO.search(m_i.group(1))
         id_foto = m_p.group(1) if m_p else ""
-    return {"titulo": m_t.group(1).strip() if m_t else "", "id_foto": id_foto}
+    return {
+        "titulo": m_t.group(1).strip() if m_t else "",
+        "id_foto": id_foto,
+        "imagem": m_i.group(1) if m_i else "",
+        "url_bruta": anuncio_bruto_na_vitrine(html),
+    }
+
+
+# O primeiro link COMPLETO de anúncio no HTML da vitrine é o produto que o
+# `ref` referenciou — o "link bruto" que aparece no inspecionar. Duas formas:
+#   catálogo:  mercadolivre.com.br/<slug>/p/MLB123456
+#   avulso:    produto.mercadolivre.com.br/MLB-1234567890-<slug>
+RE_BRUTO_CATALOGO = re.compile(
+    r"https://www\.mercadolivre\.com\.br/[\w\-]+/p/MLB\d+[^\"\s']*")
+RE_BRUTO_AVULSO = re.compile(
+    r"https://produto\.mercadolivre\.com\.br/MLB-\d+[^\"\s']*")
+
+
+def anuncio_bruto_na_vitrine(html: str) -> str:
+    """URL crua do anúncio referenciado: o candidato que aparece PRIMEIRO."""
+    achados = []
+    for rx in (RE_BRUTO_CATALOGO, RE_BRUTO_AVULSO):
+        m = rx.search(html)
+        if m:
+            achados.append((m.start(), m.group(0)))
+    if not achados:
+        return ""
+    from mercadolivre.buscador import limpar_url
+    return limpar_url(min(achados)[1].replace("&amp;", "&"))
+
+
+def baixar_midia_rival(mid: str) -> str:
+    """A foto EXATA que o rival mandou, hospedada pela uazapi ('' se falhar)."""
+    try:
+        dados = requisitar_json(
+            UAZAPI_URL + "/message/download",
+            metodo="POST",
+            corpo=json.dumps({"id": mid}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "token": UAZAPI_TOKEN},
+        )
+        return dados.get("fileURL") or ""
+    except (HttpErro, RuntimeError):
+        return ""
+
+
+def oferta_do_clone(anuncio: dict, url_bruta: str, titulo: str,
+                    imagem: str = "") -> Oferta | None:
+    """Oferta montada direto da mensagem + URL exata — sem buscar no ML."""
+    m = RE_ID_ANUNCIO.search(url_bruta.replace("/p/MLB", "/p/MLB-"))
+    if not m:
+        return None
+    nome = titulo or anuncio["nome"]
+    marca, _, _ = filtrar_marca("", nome)
+    de, por = anuncio.get("preco_de") or 0.0, anuncio["preco"]
+    return Oferta(
+        mlb_id=f"MLB{m.group(1)}",
+        nome=nome,
+        url=url_bruta,
+        imagem=imagem,
+        preco_original=de if de > por else 0.0,
+        preco_promocional=por,
+        desconto_pct=round((1 - por / de) * 100) if de > por else 0,
+        marca=marca,
+    )
 
 
 def consultas_do_nome(nome: str) -> list[str]:
@@ -263,12 +326,19 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
             if not anuncio:
                 continue
 
-            # o link dele diz o anúncio exato; o nome do grupo é só o apelido
+            # o link dele leva à vitrine, e a vitrine entrega o link BRUTO
+            # do anúncio exato — clona direto, sem procurar no ML
             meta = abrir_link_rival(anuncio["link"]) if anuncio.get("link") else {}
-            busca_por = meta.get("titulo") or anuncio["nome"]
-            oferta, como = achar_no_ml(
-                busca_por, anuncio["preco"], meta.get("id_foto", "")
-            )
+            oferta, como = None, ""
+            if meta.get("url_bruta"):
+                oferta = oferta_do_clone(anuncio, meta["url_bruta"],
+                                         meta.get("titulo", ""), meta.get("imagem", ""))
+                como = "anúncio bruto da vitrine"
+            if not oferta:
+                busca_por = meta.get("titulo") or anuncio["nome"]
+                oferta, como = achar_no_ml(
+                    busca_por, anuncio["preco"], meta.get("id_foto", "")
+                )
             if not oferta:
                 info(f"  não achei no ML: {anuncio['nome'][:44]} — {como}")
                 continue
@@ -289,11 +359,15 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
                 continue
 
             if salvar_oferta(con, oferta):
+                clone_texto = RE_CLONE_LINK.sub("{link}", texto)
+                clone_imagem = (baixar_midia_rival(mid)
+                                if "Image" in str(m.get("messageType", "")) else "")
                 con.execute(
                     "UPDATE ofertas SET origem='clone', rival_nome=?, "
-                    "rival_preco=?, rival_link=? WHERE mlb_id=?",
+                    "rival_preco=?, rival_link=?, clone_texto=?, "
+                    "clone_imagem=? WHERE mlb_id=?",
                     (anuncio["nome"], anuncio["preco"], anuncio.get("link", ""),
-                     oferta.mlb_id),
+                     clone_texto, clone_imagem, oferta.mlb_id),
                 )
                 novas += 1
                 ok(

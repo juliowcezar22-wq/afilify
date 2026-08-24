@@ -686,6 +686,8 @@ COLUNAS_NOVAS = {
     "vendedor": "TEXT NOT NULL DEFAULT ''",
     "loja": "TEXT NOT NULL DEFAULT ''",
     "codigo": "TEXT NOT NULL DEFAULT ''",
+    "clone_texto": "TEXT NOT NULL DEFAULT ''",
+    "clone_imagem": "TEXT NOT NULL DEFAULT ''",
     "loja_oficial": "INTEGER NOT NULL DEFAULT 0",
     "tentativas": "INTEGER NOT NULL DEFAULT 0",
     "proxima_tentativa": "TEXT",
@@ -1129,6 +1131,12 @@ def linha_da_loja(linha: sqlite3.Row, con=None) -> str:
 
 
 def montar_mensagem(linha: sqlite3.Row, con: sqlite3.Connection | None = None) -> str:
+    # clone literal: a mensagem é a do rival, palavra por palavra — só o
+    # link é nosso ({link} foi posto no lugar dos meli.la dele na captura)
+    clone = linha["clone_texto"] if "clone_texto" in linha.keys() else ""
+    if clone:
+        return clone.replace("{link}", link_da_mensagem(con, linha))
+
     nome = limpar_titulo(linha["nome"])
     # "no Pix" precisa aparecer: o preço do card às vezes só vale nessa forma
     # de pagamento, e o grupo reclama se descobrir só no checkout.
