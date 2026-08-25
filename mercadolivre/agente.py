@@ -545,6 +545,15 @@ def coletar(con, paginas) -> None:
             erro(f"shopee: {type(e).__name__}: {e}")
 
 
+def antecipar_envio(con, momento) -> None:
+    """Clone quente não espera o slot sorteado: sai em 1–3 min."""
+    alvo = momento + timedelta(seconds=random.uniform(60, 180))
+    atual = ler_estado(con, "proximo_envio")
+    if not atual or atual > alvo.isoformat(timespec="seconds"):
+        gravar_estado(con, "proximo_envio", alvo.isoformat(timespec="seconds"))
+        info(f"envio antecipado para {alvo:%H:%M} (clone na fila)")
+
+
 def cmd_rodar(args) -> int:
     try:
         trava = Trava().__enter__()
@@ -596,6 +605,13 @@ def cmd_rodar(args) -> int:
                 gravar_estado(con, "ultimo_clone", momento.isoformat(timespec="seconds"))
                 if bloco4_clonar(con):
                     bloco2_links(con)
+                    antecipar_envio(con, momento)
+
+            # modo espelho: sobrou clone na fila (ex.: convertido no boot)
+            # com slot longe? adianta — espelho não espera.
+            if (not _parar and config_json(con, "fila", {}).get("somente_clones")
+                    and fila_de_envio(con, 1)):
+                antecipar_envio(con, momento)
 
             if not _parar and hora_de_enviar(con, momento):
                 agendar_proximo_envio(con, momento)

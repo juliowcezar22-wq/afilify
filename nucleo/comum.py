@@ -1208,6 +1208,7 @@ def clonador_cfg(con) -> dict:
         "grupos": list(PERFIL.clone_grupos),
         "intervalo_seg": 180,
         "janela_min": 90,
+        "reclonar_apos_horas": 20,
     }
     cfg = config_json(con, "clonador", {})
     return {**padrao, **{k: v for k, v in cfg.items() if v is not None}}
@@ -1230,6 +1231,7 @@ def garantir_config(con) -> int:
             "grupos": list(PERFIL.clone_grupos),
             "intervalo_seg": 180,
             "janela_min": 90,
+            "reclonar_apos_horas": 20,
         },
         "ritmo": {
             "envios_por_dia": list(ENVIOS_POR_DIA),

@@ -304,7 +304,7 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
     novas = 0
 
     for jid in cfg['grupos']:
-        chave = f"clone_visto2_{jid}"   # v2: reprocessa a janela no deploy do espelho
+        chave = f"clone_visto3_{jid}"   # v3: reprocessa a janela no deploy do re-clone
         ja_visto = set(filter(None, ler_estado(con, chave).split(",")))
         try:
             mensagens = mensagens_do_grupo(jid)
@@ -379,23 +379,35 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
                 # Se ainda não saiu no grupo, o clone ASSUME a oferta: vira
                 # origem='clone' com a mensagem literal — senão o modo
                 # espelho a ignoraria e o espelho ficaria mudo.
-                status = con.execute(
-                    "SELECT status_envio FROM ofertas WHERE mlb_id=?",
+                ex = con.execute(
+                    "SELECT status_envio, enviado_em FROM ofertas WHERE mlb_id=?",
                     (oferta.mlb_id,)).fetchone()
-                if status and status["status_envio"] == "PENDENTE":
+                recente = False
+                if ex and ex["status_envio"] == "ENVIADO" and ex["enviado_em"]:
+                    idade_h = (agora() - datetime.fromisoformat(
+                        ex["enviado_em"])).total_seconds() / 3600
+                    recente = idade_h < cfg.get("reclonar_apos_horas", 20)
+                if ex and (ex["status_envio"] == "PENDENTE"
+                           or (ex["status_envio"] == "ENVIADO" and not recente)):
                     clone_texto = RE_CLONE_LINK.sub("{link}", texto)
                     clone_imagem = (baixar_midia_rival(mid)
                                     if "Image" in str(m.get("messageType", "")) else "")
+                    ts = agora().isoformat(timespec="seconds")
                     con.execute(
                         "UPDATE ofertas SET origem='clone', rival_nome=?, "
                         "rival_preco=?, rival_link=?, clone_texto=?, "
-                        "clone_imagem=? WHERE mlb_id=?",
+                        "clone_imagem=?, status_envio='PENDENTE', tentativas=0, "
+                        "proxima_tentativa=NULL, erro='', atualizado_em=? "
+                        "WHERE mlb_id=?",
                         (anuncio["nome"], anuncio["preco"], anuncio.get("link", ""),
-                         clone_texto, clone_imagem, oferta.mlb_id))
+                         clone_texto, clone_imagem, ts, oferta.mlb_id))
+                    # libera a trava de entrega para a republicação legítima
+                    con.execute("DELETE FROM entregas WHERE mlb_id=? AND perfil=?",
+                                (oferta.mlb_id, PERFIL_ATIVO))
                     novas += 1
-                    ok(f"  clone assumiu a oferta da fila: {oferta.nome[:40]}")
+                    ok(f"  clone assumiu: {oferta.nome[:44]}")
                 else:
-                    info(f"  rival repostou o que já enviamos: {oferta.nome[:40]}")
+                    info(f"  rival repostou envio recente — pulado: {oferta.nome[:36]}")
 
         if not seco:
             con.commit()
