@@ -119,7 +119,7 @@ RE_OG_IMAGEM = re.compile(r'(?:property="og:image"|name="image") content="([^"]+
 RE_ID_FOTO = re.compile(r"D_\w*?NP_(?:2X_)?([\w\-]+?)-[A-Z]{1,2}\.(?:webp|jpg)")
 
 
-def abrir_link_rival(link: str) -> dict:
+def abrir_link_rival(link: str, preco_msg: float = 0.0) -> dict:
     """Resolve o meli.la do rival e lê o anúncio exato pelas meta tags.
 
     O link dele cai na vitrine de afiliado (/social/...), não no produto —
@@ -147,12 +147,14 @@ def abrir_link_rival(link: str) -> dict:
     if m_i:
         m_p = RE_ID_FOTO.search(m_i.group(1))
         id_foto = m_p.group(1) if m_p else ""
+    titulo = m_t.group(1).strip() if m_t else ""
+    url_bruta, prova = anuncio_bruto_na_vitrine(html, titulo, id_foto, preco_msg)
     return {
-        "titulo": m_t.group(1).strip() if m_t else "",
+        "titulo": titulo,
         "id_foto": id_foto,
         "imagem": m_i.group(1) if m_i else "",
-        "url_bruta": anuncio_bruto_na_vitrine(
-            html, m_t.group(1).strip() if m_t else ""),
+        "url_bruta": url_bruta,
+        "prova": prova,
     }
 
 
@@ -170,32 +172,81 @@ def _tokens_uteis(texto: str) -> set:
     return {t for t in normalizar(texto).split() if len(t) > 2 and not t.isdigit()}
 
 
-def anuncio_bruto_na_vitrine(html: str, titulo: str) -> str:
-    """URL crua do anúncio referenciado NA vitrine do rival.
+# palavras que aparecem em QUALQUER anúncio de perfumaria — não identificam
+GENERICAS = {
+    "perfume", "desodorante", "colonia", "masculino", "feminino", "unissex",
+    "parfum", "edp", "edt", "deo", "eau", "original", "importado", "arabe",
+    "spray", "kit", "body", "splash", "para", "com", "the", "pour", "homme",
+    "femme", "100ml", "105ml", "90ml", "95ml", "80ml", "50ml", "200ml", "125ml",
+}
+
+
+def _distintivos(texto: str) -> set:
+    return _tokens_uteis(texto) - GENERICAS
+
+
+def anuncio_bruto_na_vitrine(html: str, titulo: str, id_foto: str = "",
+                             preco_msg: float = 0.0) -> tuple[str, str]:
+    """(URL crua, prova) do anúncio referenciado na vitrine do rival.
 
     A vitrine é a prateleira inteira dele — posição NÃO identifica o
     produto (já saiu link de Gaby Elysees numa mensagem do Salvo).
-    O escolhido é o candidato cujo slug casa com o og:title da página;
-    sem casamento decente, devolve vazio e o fluxo cai no plano B.
+    Certificação por provas independentes; na dúvida, ("", motivo) e o
+    fluxo cai no plano B (busca por foto exata). Nunca chuta.
+
+    1ª prova (FOTO): o og:image da vitrine carrega o ID único da foto
+       do produto referenciado; o card que contém esse ID é o produto.
+    2ª prova (SLUG): o ML gera o slug a partir do título do anúncio —
+       casamento forte slug×og:title identifica; o preço do card não
+       pode gritar contra o preço da mensagem do rival.
     """
-    esperado = _tokens_uteis(titulo)
-    if not esperado:
-        return ""
     candidatos = []
     for rx in (RE_BRUTO_CATALOGO, RE_BRUTO_AVULSO):
         for m in rx.finditer(html):
-            url = m.group(0).replace("&amp;", "&")
-            slug = re.sub(r"https://[^/]+/", "", url.split("?")[0])
-            casou = len(esperado & _tokens_uteis(slug.replace("-", " ")))
-            candidatos.append((casou / len(esperado), -m.start(), url))
+            candidatos.append((m.start(), m.group(0).replace("&amp;", "&")))
     if not candidatos:
-        return ""
-    candidatos.sort(reverse=True)
-    escore, _, url = candidatos[0]
-    if escore < 0.5:
-        return ""
+        return "", "vitrine sem link de anúncio"
+    candidatos.sort()
     from mercadolivre.buscador import limpar_url
-    return limpar_url(url)
+
+    # ── 1ª prova: o candidato MAIS PRÓXIMO do ID da foto referenciada
+    # (proximidade, não "está na janela": cards vizinhos vazam na janela)
+    if id_foto:
+        ocorrencias = [m.start() for m in re.finditer(re.escape(id_foto), html)]
+        if ocorrencias:
+            dist, url_foto = min(
+                (min(abs(pos - o) for o in ocorrencias), url)
+                for pos, url in candidatos)
+            if dist <= 1500:
+                return limpar_url(url_foto), "foto"
+
+    # ── 2ª prova: slug × título (+ preço do card não pode gritar)
+    esperado = _tokens_uteis(titulo)
+    if not esperado:
+        return "", "vitrine sem og:title"
+    pontuados = []
+    for pos, url in candidatos:
+        slug = re.sub(r"https://[^/]+/", "", url.split("?")[0])
+        casou = len(esperado & _tokens_uteis(slug.replace("-", " ")))
+        pontuados.append((casou / len(esperado), -pos, pos, url))
+    pontuados.sort(reverse=True)
+    escore, _, pos, url = pontuados[0]
+    if escore < 0.5:
+        return "", f"slug não casa (melhor escore {escore:.0%})"
+    # genéricas carregam escore ("desodorante colônia 100ml" casa com tudo):
+    # o slug PRECISA conter um token distintivo do título ("clash", "asad"…)
+    marcantes = _distintivos(titulo)
+    slug_esc = _tokens_uteis(
+        re.sub(r"https://[^/]+/", "", url.split("?")[0]).replace("-", " "))
+    if marcantes and not (marcantes & slug_esc):
+        return "", "slug sem token distintivo do título"
+    if preco_msg > 0:
+        card = html[max(0, pos - 1500): pos + 1500]
+        precos = [preco_br(p) for p in RE_CLONE_PRECO.findall(card)]
+        precos = [p for p in precos if p > 0]
+        if precos and not any(abs(p - preco_msg) / preco_msg <= 0.40 for p in precos):
+            return "", f"preço do card grita ({min(precos):.0f} vs {preco_msg:.0f})"
+    return limpar_url(url), "slug+preço" if preco_msg else "slug"
 
 
 def baixar_midia_rival(mid: str) -> str:
@@ -348,14 +399,26 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
 
             # o link dele leva à vitrine, e a vitrine entrega o link BRUTO
             # do anúncio exato — clona direto, sem procurar no ML
-            meta = abrir_link_rival(anuncio["link"]) if anuncio.get("link") else {}
+            meta = (abrir_link_rival(anuncio["link"], anuncio["preco"])
+                    if anuncio.get("link") else {})
+            # pré-condição: o og:title tem que bater com o nome que ELE
+            # escreveu — senão o próprio ref resolveu outro produto
+            nome_msg = _tokens_uteis(anuncio["nome"])
+            og_ok = bool(nome_msg) and meta.get("titulo") and (
+                len(nome_msg & _tokens_uteis(meta["titulo"])) / len(nome_msg) >= 0.5)
             oferta, como = None, ""
-            if meta.get("url_bruta"):
+            if meta.get("url_bruta") and og_ok:
                 oferta = oferta_do_clone(anuncio, meta["url_bruta"],
                                          meta.get("titulo", ""), meta.get("imagem", ""))
-                como = "anúncio bruto (slug casa com o título)"
+                como = f"anúncio bruto (prova: {meta.get('prova', '?')})"
             if not oferta:
-                busca_por = meta.get("titulo") or anuncio["nome"]
+                if meta.get("url_bruta") and not og_ok:
+                    info(f"  og:title não bate com a mensagem — plano B: "
+                         f"{anuncio['nome'][:36]}")
+                elif meta.get("prova"):
+                    info(f"  bruto reprovado ({meta['prova']}) — plano B: "
+                         f"{anuncio['nome'][:36]}")
+                busca_por = (meta.get("titulo") if og_ok else "") or anuncio["nome"]
                 oferta, como = achar_no_ml(
                     busca_por, anuncio["preco"], meta.get("id_foto", "")
                 )

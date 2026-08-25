@@ -24,7 +24,7 @@ class AnuncioBruto(unittest.TestCase):
     TITULO = "Perfume Spectre Ghost Fragrance World Eau De Parfum 80ml Masculino"
 
     def test_vitrine_real_do_rival(self):
-        url = anuncio_bruto_na_vitrine(vitrine_real(), self.TITULO)
+        url, prova = anuncio_bruto_na_vitrine(vitrine_real(), self.TITULO)
         self.assertIn("/p/MLB27861230", url)
         self.assertIn("spectre-ghost", url)
         self.assertNotIn("matt_", url)          # limpa tracking do ML
@@ -33,20 +33,51 @@ class AnuncioBruto(unittest.TestCase):
         # regressão do caso Salvo→Gaby: o 1º link do HTML é OUTRO produto
         html = ('<a href="https://www.mercadolivre.com.br/perfume-gaby-paris-elysees-feminino/p/MLB111">'
                 '<a href="https://www.mercadolivre.com.br/perfume-maison-alhambra-salvo-edp-100ml/p/MLB222">')
-        url = anuncio_bruto_na_vitrine(html, "Perfume Maison Alhambra Salvo Edp 100ml")
+        url, prova = anuncio_bruto_na_vitrine(html, "Perfume Maison Alhambra Salvo Edp 100ml")
         self.assertIn("MLB222", url)
         self.assertIn("salvo", url)
+        self.assertEqual(prova, "slug")
+
+    def test_prova_fotografica_vence_o_slug(self):
+        # foto do produto referenciado está no card do 2º link — ele vence
+        # mesmo com slug ilegível
+        html = ('<img src="D_NQ_NP_2X_777777-AAA-F.webp">'
+                '<a href="https://www.mercadolivre.com.br/x-y-z/p/MLB111">'
+                '<div><img src="D_NQ_NP_2X_ABC123-MLA-F.webp">'
+                '<a href="https://www.mercadolivre.com.br/a-b-c/p/MLB222"></div>')
+        url, prova = anuncio_bruto_na_vitrine(html, "Nada A Ver", id_foto="ABC123-MLA")
+        self.assertIn("MLB222", url)
+        self.assertEqual(prova, "foto")
+
+    def test_preco_gritante_reprova(self):
+        html = ('<a href="https://www.mercadolivre.com.br/perfume-salvo-edp-100ml/p/MLB222">'
+                ' R$ 899,00 ')
+        url, prova = anuncio_bruto_na_vitrine(
+            html, "Perfume Salvo Edp 100ml", preco_msg=159.0)
+        self.assertEqual(url, "")
+        self.assertIn("preço", prova)
+
+    def test_preco_compativel_aprova(self):
+        html = ('<a href="https://www.mercadolivre.com.br/perfume-salvo-edp-100ml/p/MLB222">'
+                ' De R$ 279,00 por R$ 159,00 ')
+        url, prova = anuncio_bruto_na_vitrine(
+            html, "Perfume Salvo Edp 100ml", preco_msg=159.0)
+        self.assertIn("MLB222", url)
+        self.assertEqual(prova, "slug+preço")
 
     def test_sem_casamento_decente_devolve_vazio(self):
         html = '<a href="https://www.mercadolivre.com.br/perfume-gaby-paris-elysees/p/MLB111">'
-        self.assertEqual(anuncio_bruto_na_vitrine(
-            html, "Lattafa Asad Bourbon 100ml"), "")
+        url, prova = anuncio_bruto_na_vitrine(html, "Lattafa Asad Bourbon 100ml")
+        self.assertEqual(url, "")
+        self.assertIn("slug não casa", prova)
 
     def test_sem_titulo_devolve_vazio(self):
-        self.assertEqual(anuncio_bruto_na_vitrine(vitrine_real(), ""), "")
+        url, prova = anuncio_bruto_na_vitrine(vitrine_real(), "")
+        self.assertEqual(url, "")
 
     def test_sem_anuncio_devolve_vazio(self):
-        self.assertEqual(anuncio_bruto_na_vitrine("<html>nada</html>", self.TITULO), "")
+        url, _ = anuncio_bruto_na_vitrine("<html>nada</html>", self.TITULO)
+        self.assertEqual(url, "")
 
 
 class OfertaDoClone(unittest.TestCase):
