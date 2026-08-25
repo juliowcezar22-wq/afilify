@@ -93,6 +93,9 @@ def fila_de_envio(con: sqlite3.Connection, limite: int) -> list[sqlite3.Row]:
 
     condicoes = ["status_envio = 'PENDENTE'", "link_afiliado != ''",
                  "perfil = ?"]
+    # modo espelho: publica SÓ o que veio do clonador (config do painel)
+    if config_json(con, "fila", {}).get("somente_clones"):
+        condicoes.append("origem = 'clone'")
     # tentativa que falhou fica de molho até a hora marcada
     condicoes.append("(proxima_tentativa IS NULL OR proxima_tentativa <= ?)")
     params: list = [PERFIL_ATIVO, agora().isoformat(timespec="seconds")]
