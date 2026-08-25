@@ -304,7 +304,7 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
     novas = 0
 
     for jid in cfg['grupos']:
-        chave = f"clone_visto_{jid}"
+        chave = f"clone_visto2_{jid}"   # v2: reprocessa a janela no deploy do espelho
         ja_visto = set(filter(None, ler_estado(con, chave).split(",")))
         try:
             mensagens = mensagens_do_grupo(jid)
@@ -375,7 +375,27 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
                     f"(-{oferta.desconto_pct}%)"
                 )
             else:
-                info(f"  já estava na fila: {oferta.nome[:44]}")
+                # produto já existia (a busca achou antes do rival postar).
+                # Se ainda não saiu no grupo, o clone ASSUME a oferta: vira
+                # origem='clone' com a mensagem literal — senão o modo
+                # espelho a ignoraria e o espelho ficaria mudo.
+                status = con.execute(
+                    "SELECT status_envio FROM ofertas WHERE mlb_id=?",
+                    (oferta.mlb_id,)).fetchone()
+                if status and status["status_envio"] == "PENDENTE":
+                    clone_texto = RE_CLONE_LINK.sub("{link}", texto)
+                    clone_imagem = (baixar_midia_rival(mid)
+                                    if "Image" in str(m.get("messageType", "")) else "")
+                    con.execute(
+                        "UPDATE ofertas SET origem='clone', rival_nome=?, "
+                        "rival_preco=?, rival_link=?, clone_texto=?, "
+                        "clone_imagem=? WHERE mlb_id=?",
+                        (anuncio["nome"], anuncio["preco"], anuncio.get("link", ""),
+                         clone_texto, clone_imagem, oferta.mlb_id))
+                    novas += 1
+                    ok(f"  clone assumiu a oferta da fila: {oferta.nome[:40]}")
+                else:
+                    info(f"  rival repostou o que já enviamos: {oferta.nome[:40]}")
 
         if not seco:
             con.commit()

@@ -91,6 +91,25 @@ class MensagemEFotoLiterais(unittest.TestCase):
         self.assertEqual(foto_para_envio(self.linha),
                          "https://pessoal.uazapi.com/files/abc.jpg")
 
+    def test_clone_assume_pendente_existente(self):
+        # simula o galho do bloco4: produto da busca ainda não enviado
+        from mercadolivre.clonador import RE_CLONE_LINK
+        texto_rival = "TOP\n*Spectre 80ml*\nPor *R$272* 🔥\nhttps://meli.la/xyz"
+        clone_texto = RE_CLONE_LINK.sub("{link}", texto_rival)
+        self.con.execute(
+            "UPDATE ofertas SET origem='busca', clone_texto='', clone_imagem='' "
+            "WHERE mlb_id='MLB1'")
+        status = self.con.execute(
+            "SELECT status_envio FROM ofertas WHERE mlb_id='MLB1'").fetchone()
+        self.assertEqual(status["status_envio"], "PENDENTE")   # pré-condição
+        self.con.execute(
+            "UPDATE ofertas SET origem='clone', clone_texto=? WHERE mlb_id='MLB1' "
+            "AND status_envio='PENDENTE'", (clone_texto,))
+        self.con.commit()
+        linha = self.con.execute("SELECT * FROM ofertas WHERE mlb_id='MLB1'").fetchone()
+        self.assertEqual(linha["origem"], "clone")
+        self.assertIn("{link}", linha["clone_texto"])
+
     def test_oferta_normal_segue_no_template(self):
         salvar_oferta(self.con, Oferta(mlb_id="MLB2", nome="Perfume Asad Lattafa 100ml",
             url="https://ml.com/y", preco_original=300, preco_promocional=200,
