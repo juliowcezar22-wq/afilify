@@ -641,6 +641,7 @@ def baixar_busca(termo: str) -> str:
             "user-agent": UA_CHROME,
             "referer": "https://www.mercadolivre.com.br/",
             "cookie": cookie_ml(),
+            **HEADERS_NAVEGADOR,
         },
     )
 
