@@ -198,23 +198,6 @@ def anuncio_bruto_na_vitrine(html: str, titulo: str) -> str:
     return limpar_url(url)
 
 
-def verificar_destino(url: str, titulo: str) -> bool:
-    """Rede dupla: abre o anúncio escolhido e confere se o título bate."""
-    try:
-        html = requisitar(url, headers={
-            "accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-            "accept-language": "pt-BR,pt;q=0.9", "accept-encoding": "gzip, deflate",
-            "user-agent": UA_CHROME})
-    except (HttpErro, RuntimeError):
-        return False
-    m = RE_OG_TITULO.search(html)
-    if not m:
-        return False
-    esperado = _tokens_uteis(titulo)
-    achado = _tokens_uteis(_html.unescape(m.group(1)))
-    return bool(esperado) and len(esperado & achado) / len(esperado) >= 0.4
-
-
 def baixar_midia_rival(mid: str) -> str:
     """A foto EXATA que o rival mandou, hospedada pela uazapi ('' se falhar)."""
     try:
@@ -367,11 +350,10 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
             # do anúncio exato — clona direto, sem procurar no ML
             meta = abrir_link_rival(anuncio["link"]) if anuncio.get("link") else {}
             oferta, como = None, ""
-            if meta.get("url_bruta") and verificar_destino(
-                    meta["url_bruta"], meta.get("titulo") or anuncio["nome"]):
+            if meta.get("url_bruta"):
                 oferta = oferta_do_clone(anuncio, meta["url_bruta"],
                                          meta.get("titulo", ""), meta.get("imagem", ""))
-                como = "anúncio bruto verificado"
+                como = "anúncio bruto (slug casa com o título)"
             if not oferta:
                 busca_por = meta.get("titulo") or anuncio["nome"]
                 oferta, como = achar_no_ml(
