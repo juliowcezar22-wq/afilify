@@ -151,7 +151,8 @@ def abrir_link_rival(link: str) -> dict:
         "titulo": m_t.group(1).strip() if m_t else "",
         "id_foto": id_foto,
         "imagem": m_i.group(1) if m_i else "",
-        "url_bruta": anuncio_bruto_na_vitrine(html),
+        "url_bruta": anuncio_bruto_na_vitrine(
+            html, m_t.group(1).strip() if m_t else ""),
     }
 
 
@@ -165,17 +166,53 @@ RE_BRUTO_AVULSO = re.compile(
     r"https://produto\.mercadolivre\.com\.br/MLB-\d+[^\"\s']*")
 
 
-def anuncio_bruto_na_vitrine(html: str) -> str:
-    """URL crua do anúncio referenciado: o candidato que aparece PRIMEIRO."""
-    achados = []
+def _tokens_uteis(texto: str) -> set:
+    return {t for t in normalizar(texto).split() if len(t) > 2 and not t.isdigit()}
+
+
+def anuncio_bruto_na_vitrine(html: str, titulo: str) -> str:
+    """URL crua do anúncio referenciado NA vitrine do rival.
+
+    A vitrine é a prateleira inteira dele — posição NÃO identifica o
+    produto (já saiu link de Gaby Elysees numa mensagem do Salvo).
+    O escolhido é o candidato cujo slug casa com o og:title da página;
+    sem casamento decente, devolve vazio e o fluxo cai no plano B.
+    """
+    esperado = _tokens_uteis(titulo)
+    if not esperado:
+        return ""
+    candidatos = []
     for rx in (RE_BRUTO_CATALOGO, RE_BRUTO_AVULSO):
-        m = rx.search(html)
-        if m:
-            achados.append((m.start(), m.group(0)))
-    if not achados:
+        for m in rx.finditer(html):
+            url = m.group(0).replace("&amp;", "&")
+            slug = re.sub(r"https://[^/]+/", "", url.split("?")[0])
+            casou = len(esperado & _tokens_uteis(slug.replace("-", " ")))
+            candidatos.append((casou / len(esperado), -m.start(), url))
+    if not candidatos:
+        return ""
+    candidatos.sort(reverse=True)
+    escore, _, url = candidatos[0]
+    if escore < 0.5:
         return ""
     from mercadolivre.buscador import limpar_url
-    return limpar_url(min(achados)[1].replace("&amp;", "&"))
+    return limpar_url(url)
+
+
+def verificar_destino(url: str, titulo: str) -> bool:
+    """Rede dupla: abre o anúncio escolhido e confere se o título bate."""
+    try:
+        html = requisitar(url, headers={
+            "accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "accept-language": "pt-BR,pt;q=0.9", "accept-encoding": "gzip, deflate",
+            "user-agent": UA_CHROME})
+    except (HttpErro, RuntimeError):
+        return False
+    m = RE_OG_TITULO.search(html)
+    if not m:
+        return False
+    esperado = _tokens_uteis(titulo)
+    achado = _tokens_uteis(_html.unescape(m.group(1)))
+    return bool(esperado) and len(esperado & achado) / len(esperado) >= 0.4
 
 
 def baixar_midia_rival(mid: str) -> str:
@@ -330,10 +367,11 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
             # do anúncio exato — clona direto, sem procurar no ML
             meta = abrir_link_rival(anuncio["link"]) if anuncio.get("link") else {}
             oferta, como = None, ""
-            if meta.get("url_bruta"):
+            if meta.get("url_bruta") and verificar_destino(
+                    meta["url_bruta"], meta.get("titulo") or anuncio["nome"]):
                 oferta = oferta_do_clone(anuncio, meta["url_bruta"],
                                          meta.get("titulo", ""), meta.get("imagem", ""))
-                como = "anúncio bruto da vitrine"
+                como = "anúncio bruto verificado"
             if not oferta:
                 busca_por = meta.get("titulo") or anuncio["nome"]
                 oferta, como = achar_no_ml(

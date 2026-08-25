@@ -21,19 +21,32 @@ def vitrine_real() -> str:
 
 
 class AnuncioBruto(unittest.TestCase):
+    TITULO = "Perfume Spectre Ghost Fragrance World Eau De Parfum 80ml Masculino"
+
     def test_vitrine_real_do_rival(self):
-        url = anuncio_bruto_na_vitrine(vitrine_real())
+        url = anuncio_bruto_na_vitrine(vitrine_real(), self.TITULO)
         self.assertIn("/p/MLB27861230", url)
         self.assertIn("spectre-ghost", url)
         self.assertNotIn("matt_", url)          # limpa tracking do ML
 
-    def test_primeiro_do_html_vence(self):
-        html = ('x <a href="https://produto.mercadolivre.com.br/MLB-111222333-a-x">'
-                ' <a href="https://www.mercadolivre.com.br/b/p/MLB999">')
-        self.assertIn("MLB-111222333", anuncio_bruto_na_vitrine(html))
+    def test_titulo_decide_nao_a_posicao(self):
+        # regressão do caso Salvo→Gaby: o 1º link do HTML é OUTRO produto
+        html = ('<a href="https://www.mercadolivre.com.br/perfume-gaby-paris-elysees-feminino/p/MLB111">'
+                '<a href="https://www.mercadolivre.com.br/perfume-maison-alhambra-salvo-edp-100ml/p/MLB222">')
+        url = anuncio_bruto_na_vitrine(html, "Perfume Maison Alhambra Salvo Edp 100ml")
+        self.assertIn("MLB222", url)
+        self.assertIn("salvo", url)
+
+    def test_sem_casamento_decente_devolve_vazio(self):
+        html = '<a href="https://www.mercadolivre.com.br/perfume-gaby-paris-elysees/p/MLB111">'
+        self.assertEqual(anuncio_bruto_na_vitrine(
+            html, "Lattafa Asad Bourbon 100ml"), "")
+
+    def test_sem_titulo_devolve_vazio(self):
+        self.assertEqual(anuncio_bruto_na_vitrine(vitrine_real(), ""), "")
 
     def test_sem_anuncio_devolve_vazio(self):
-        self.assertEqual(anuncio_bruto_na_vitrine("<html>nada</html>"), "")
+        self.assertEqual(anuncio_bruto_na_vitrine("<html>nada</html>", self.TITULO), "")
 
 
 class OfertaDoClone(unittest.TestCase):
