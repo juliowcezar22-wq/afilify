@@ -41,7 +41,7 @@ from nucleo.comum import (
 )
 from mercadolivre.buscador import (
     RE_ID_ANUNCIO, baixar_busca, contexto_da_busca, extrair_ofertas_json,
-    filtrar_marca, normalizar, salvar_oferta,
+    filtrar_marca, limpar_url, normalizar, salvar_oferta,
 )
 
 # BLOCO 4 — MONITOR DA CONCORRÊNCIA
@@ -119,7 +119,7 @@ RE_OG_IMAGEM = re.compile(r'(?:property="og:image"|name="image") content="([^"]+
 RE_ID_FOTO = re.compile(r"D_\w*?NP_(?:2X_)?([\w\-]+?)-[A-Z]{1,2}\.(?:webp|jpg)")
 
 
-def abrir_link_rival(link: str, preco_msg: float = 0.0) -> dict:
+def abrir_link_rival(link: str, preco_msg: float = 0.0) -> dict:   # preco_msg mantido por compat
     """Resolve o meli.la do rival e lê o anúncio exato pelas meta tags.
 
     O link dele cai na vitrine de afiliado (/social/...), não no produto —
@@ -148,9 +148,16 @@ def abrir_link_rival(link: str, preco_msg: float = 0.0) -> dict:
         m_p = RE_ID_FOTO.search(m_i.group(1))
         id_foto = m_p.group(1) if m_p else ""
     titulo = m_t.group(1).strip() if m_t else ""
-    url_bruta, prova = anuncio_bruto_na_vitrine(html, titulo, id_foto, preco_msg)
+    # 1ª prova: o marcador do próprio ML. Só se ele faltar caímos em foto/slug.
+    marcado = anuncio_marcado_na_vitrine(html)
+    if marcado:
+        url_bruta, prova = limpar_url(marcado["url"]), "marcador do ML"
+    else:
+        url_bruta, prova = anuncio_bruto_na_vitrine(html, titulo, id_foto)
     return {
         "titulo": titulo,
+        "item_id": (marcado or {}).get("item_id", ""),
+        "product_id": (marcado or {}).get("product_id", ""),
         "id_foto": id_foto,
         "imagem": m_i.group(1) if m_i else "",
         "url_bruta": url_bruta,
@@ -185,8 +192,86 @@ def _distintivos(texto: str) -> set:
     return _tokens_uteis(texto) - GENERICAS
 
 
-def anuncio_bruto_na_vitrine(html: str, titulo: str, id_foto: str = "",
-                             preco_msg: float = 0.0) -> tuple[str, str]:
+MARCA_POLYCARD = '"unique_id":"'
+
+
+def _objeto_json(texto: str, inicio: int) -> str:
+    """Objeto JSON balanceado começando em `inicio` ('{'), respeitando strings."""
+    if inicio < 0 or inicio >= len(texto) or texto[inicio] != "{":
+        return ""
+    nivel, i, dentro, escape = 0, inicio, False, False
+    while i < len(texto) and i - inicio < 400_000:
+        c = texto[i]
+        if dentro:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                dentro = False
+        elif c == '"':
+            dentro = True
+        elif c == "{":
+            nivel += 1
+        elif c == "}":
+            nivel -= 1
+            if nivel == 0:
+                return texto[inicio:i + 1]
+        i += 1
+    return ""
+
+
+def anuncio_marcado_na_vitrine(html: str) -> dict:
+    """O anúncio que o PRÓPRIO Mercado Livre marca como compartilhado.
+
+    Descoberto no laboratório (11 vitrines, 2 afiliados): o HTML da página
+    /social/ já vem com ~18 "polycards" e exatamente UM tem origem
+    diferente de todos os outros — `reco_backend=item_decorator`, contra
+    `ranker_retrieval_system_vpp_v2p` nos demais, que são recomendação.
+    Esse card é o item que o afiliado compartilhou. Validado: produto certo
+    em 10/10 e VENDEDOR certo em 3/3 (nos casos em que o rival nomeia a loja).
+
+    Não fixamos o nome 'item_decorator': procuramos o card cuja origem é
+    ÚNICA na página. Se não houver exatamente um, devolvemos vazio e o
+    fluxo cai nas provas antigas (foto/slug).
+    """
+    if not html:
+        return {}
+    cards = []
+    for m in re.finditer(re.escape(MARCA_POLYCARD), html):
+        bruto = _objeto_json(html, html.rfind("{", 0, m.start()))
+        if not bruto:
+            continue
+        try:
+            card = json.loads(bruto)
+        except Exception:                      # noqa: BLE001
+            continue
+        meta = card.get("metadata") or {}
+        if not meta.get("id"):
+            continue
+        frag = (meta.get("url_fragments") or "").replace("\\u0026", "&")
+        origem = ""
+        for par in frag.lstrip("#").split("&"):
+            if par.startswith("reco_backend="):
+                origem = par.split("=", 1)[1]
+        url = (meta.get("url") or "").replace("\\u002F", "/")
+        if url and not url.startswith("http"):
+            url = "https://" + url
+        cards.append({"origem": origem, "url": url, "item_id": meta.get("id", ""),
+                      "product_id": meta.get("product_id", "")})
+    if len(cards) < 3:
+        return {}
+    contagem = {}
+    for c in cards:
+        contagem[c["origem"]] = contagem.get(c["origem"], 0) + 1
+    unicos = [c for c in cards if contagem[c["origem"]] == 1]
+    maioria = max(contagem.values())
+    if len(unicos) != 1 or maioria < 2 or not unicos[0]["url"]:
+        return {}
+    return unicos[0]
+
+
+def anuncio_bruto_na_vitrine(html: str, titulo: str, id_foto: str = "") -> tuple[str, str]:
     """(URL crua, prova) do anúncio referenciado na vitrine do rival.
 
     A vitrine é a prateleira inteira dele — posição NÃO identifica o
@@ -207,7 +292,6 @@ def anuncio_bruto_na_vitrine(html: str, titulo: str, id_foto: str = "",
     if not candidatos:
         return "", "vitrine sem link de anúncio"
     candidatos.sort()
-    from mercadolivre.buscador import limpar_url
 
     # ── 1ª prova: o candidato MAIS PRÓXIMO do ID da foto referenciada
     # (proximidade, não "está na janela": cards vizinhos vazam na janela)
@@ -240,13 +324,10 @@ def anuncio_bruto_na_vitrine(html: str, titulo: str, id_foto: str = "",
         re.sub(r"https://[^/]+/", "", url.split("?")[0]).replace("-", " "))
     if marcantes and not (marcantes & slug_esc):
         return "", "slug sem token distintivo do título"
-    if preco_msg > 0:
-        card = html[max(0, pos - 1500): pos + 1500]
-        precos = [preco_br(p) for p in RE_CLONE_PRECO.findall(card)]
-        precos = [p for p in precos if p > 0]
-        if precos and not any(abs(p - preco_msg) / preco_msg <= 0.40 for p in precos):
-            return "", f"preço do card grita ({min(precos):.0f} vs {preco_msg:.0f})"
-    return limpar_url(url), "slug+preço" if preco_msg else "slug"
+    # NÃO usamos preço como prova: medido no laboratório, o preço da vitrine
+    # difere do anunciado em minutos (R$97→R$112, R$546→R$492) e nos dois
+    # sentidos. Preço reprovava anúncio certo e aprovava anúncio errado.
+    return limpar_url(url), "slug"
 
 
 def baixar_midia_rival(mid: str) -> str:
@@ -266,14 +347,19 @@ def baixar_midia_rival(mid: str) -> str:
 def oferta_do_clone(anuncio: dict, url_bruta: str, titulo: str,
                     imagem: str = "") -> Oferta | None:
     """Oferta montada direto da mensagem + URL exata — sem buscar no ML."""
-    m = RE_ID_ANUNCIO.search(url_bruta.replace("/p/MLB", "/p/MLB-"))
-    if not m:
-        return None
+    m_user = re.search(r"/up/(MLBU\d{6,15})", url_bruta, re.I)
+    if m_user:
+        mlb_id = m_user.group(1).upper()
+    else:
+        m = RE_ID_ANUNCIO.search(url_bruta.replace("/p/MLB", "/p/MLB-"))
+        if not m:
+            return None
+        mlb_id = f"MLB{m.group(1)}"
     nome = titulo or anuncio["nome"]
     marca, _, _ = filtrar_marca("", nome)
     de, por = anuncio.get("preco_de") or 0.0, anuncio["preco"]
     return Oferta(
-        mlb_id=f"MLB{m.group(1)}",
+        mlb_id=mlb_id,
         nome=nome,
         url=url_bruta,
         imagem=imagem,

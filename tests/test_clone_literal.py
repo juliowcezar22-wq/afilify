@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import nucleo.comum as comum
 from nucleo.comum import abrir_banco, montar_mensagem, Oferta, salvar_oferta
-from mercadolivre.clonador import anuncio_bruto_na_vitrine, oferta_do_clone
+from mercadolivre.clonador import (anuncio_bruto_na_vitrine,
+                                   anuncio_marcado_na_vitrine, oferta_do_clone)
 from mercadolivre.buscador import foto_para_envio
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -49,21 +50,14 @@ class AnuncioBruto(unittest.TestCase):
         self.assertIn("MLB222", url)
         self.assertEqual(prova, "foto")
 
-    def test_preco_gritante_reprova(self):
+    def test_preco_nao_reprova_mais(self):
+        # medido no laboratório: o preço da vitrine muda em minutos, nos dois
+        # sentidos. Usá-lo como prova reprovava anúncio certo.
         html = ('<a href="https://www.mercadolivre.com.br/perfume-salvo-edp-100ml/p/MLB222">'
                 ' R$ 899,00 ')
-        url, prova = anuncio_bruto_na_vitrine(
-            html, "Perfume Salvo Edp 100ml", preco_msg=159.0)
-        self.assertEqual(url, "")
-        self.assertIn("preço", prova)
-
-    def test_preco_compativel_aprova(self):
-        html = ('<a href="https://www.mercadolivre.com.br/perfume-salvo-edp-100ml/p/MLB222">'
-                ' De R$ 279,00 por R$ 159,00 ')
-        url, prova = anuncio_bruto_na_vitrine(
-            html, "Perfume Salvo Edp 100ml", preco_msg=159.0)
+        url, prova = anuncio_bruto_na_vitrine(html, "Perfume Salvo Edp 100ml")
         self.assertIn("MLB222", url)
-        self.assertEqual(prova, "slug+preço")
+        self.assertEqual(prova, "slug")
 
     def test_sem_casamento_decente_devolve_vazio(self):
         html = '<a href="https://www.mercadolivre.com.br/perfume-gaby-paris-elysees/p/MLB111">'
@@ -78,6 +72,44 @@ class AnuncioBruto(unittest.TestCase):
     def test_sem_anuncio_devolve_vazio(self):
         url, _ = anuncio_bruto_na_vitrine("<html>nada</html>", self.TITULO)
         self.assertEqual(url, "")
+
+
+class MarcadorDoML(unittest.TestCase):
+    """O card cuja origem é ÚNICA na página é o item compartilhado."""
+
+    def _card(self, uid, item, produto, backend, slug):
+        return ('{"unique_id":"' + uid + '","metadata":{"id":"' + item + '",'
+                '"product_id":"' + produto + '","url":"www.mercadolivre.com.br/' + slug + '",'
+                '"url_fragments":"#reco_backend=' + backend + '"},"components":[]}')
+
+    def test_acha_o_unico_diferente(self):
+        html = "".join([
+            self._card("a", "MLB1", "MLB11", "ranker_retrieval_system_vpp_v2p", "x/p/MLB11"),
+            self._card("b", "MLB2", "MLB22", "item_decorator", "salvo/p/MLB22"),
+            self._card("c", "MLB3", "MLB33", "ranker_retrieval_system_vpp_v2p", "y/p/MLB33"),
+        ])
+        achado = anuncio_marcado_na_vitrine(html)
+        self.assertEqual(achado["item_id"], "MLB2")
+        self.assertIn("MLB22", achado["url"])
+
+    def test_todos_iguais_devolve_vazio(self):
+        html = "".join([
+            self._card(u, "MLB" + u, "MLB1" + u, "ranker_retrieval_system_vpp_v2p", "x/p/MLB1")
+            for u in ("a", "b", "c", "d")])
+        self.assertEqual(anuncio_marcado_na_vitrine(html), {})
+
+    def test_dois_unicos_devolve_vazio(self):
+        # ambiguidade não vira chute
+        html = "".join([
+            self._card("a", "MLB1", "MLB11", "backend_a", "x/p/MLB11"),
+            self._card("b", "MLB2", "MLB22", "backend_b", "y/p/MLB22"),
+            self._card("c", "MLB3", "MLB33", "comum", "z/p/MLB33"),
+            self._card("d", "MLB4", "MLB44", "comum", "w/p/MLB44"),
+        ])
+        self.assertEqual(anuncio_marcado_na_vitrine(html), {})
+
+    def test_html_sem_polycard(self):
+        self.assertEqual(anuncio_marcado_na_vitrine("<html>nada</html>"), {})
 
 
 class OfertaDoClone(unittest.TestCase):
@@ -98,6 +130,11 @@ class OfertaDoClone(unittest.TestCase):
         o = oferta_do_clone(self.ANUNCIO,
             "https://produto.mercadolivre.com.br/MLB-4993818683-perfume-y", "")
         self.assertEqual(o.mlb_id, "MLB4993818683")
+
+    def test_url_de_anuncio_de_vendedor(self):
+        o = oferta_do_clone(self.ANUNCIO,
+            "https://www.mercadolivre.com.br/perfume-x/up/MLBU3880520594", "Perfume X")
+        self.assertEqual(o.mlb_id, "MLBU3880520594")
 
     def test_url_sem_id(self):
         self.assertIsNone(oferta_do_clone(self.ANUNCIO, "https://ml.com/nada", ""))
