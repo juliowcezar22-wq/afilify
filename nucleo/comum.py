@@ -666,6 +666,20 @@ CREATE TABLE IF NOT EXISTS entregas (
     PRIMARY KEY (mlb_id, canal)
 );
 
+CREATE TABLE IF NOT EXISTS rival_mensagens (
+    messageid   TEXT PRIMARY KEY,
+    chatid      TEXT NOT NULL,
+    texto       TEXT NOT NULL DEFAULT '',
+    tipo        TEXT NOT NULL DEFAULT '',
+    de_mim      INTEGER NOT NULL DEFAULT 0,
+    ts_mensagem TEXT NOT NULL DEFAULT '',
+    recebido_em TEXT NOT NULL,
+    processado  INTEGER NOT NULL DEFAULT 0,
+    bruto       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_rival_pendentes
+    ON rival_mensagens(chatid, processado);
+
 CREATE TABLE IF NOT EXISTS logs (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
     ts     TEXT NOT NULL,
@@ -773,6 +787,45 @@ def uazapi_grupos() -> list[dict]:
         UAZAPI_URL + "/group/list", headers={"token": UAZAPI_TOKEN}
     )
     return dados.get("groups") or []
+
+
+def mensagens_do_webhook(con, jid: str, limite: int = 40) -> list:
+    """Mensagens que a uazapi entregou por webhook e ainda não processamos.
+
+    Mesmo formato de mensagens_do_grupo(), para o BLOCO 4 não precisar
+    saber de onde veio. O webhook é o caminho rápido; a leitura do
+    histórico continua como rede de segurança.
+    """
+    linhas = con.execute(
+        "SELECT messageid, texto, tipo, de_mim, ts_mensagem FROM rival_mensagens "
+        "WHERE chatid = ? AND processado = 0 ORDER BY ts_mensagem LIMIT ?",
+        (jid, limite),
+    ).fetchall()
+    saida = []
+    for l in linhas:
+        try:
+            ts = float(l["ts_mensagem"])
+        except (TypeError, ValueError):
+            ts = 0.0
+        saida.append({
+            "messageid": l["messageid"], "text": l["texto"] or "",
+            "messageType": l["tipo"] or "", "fromMe": bool(l["de_mim"]),
+            "messageTimestamp": ts, "_via_webhook": True,
+        })
+    return saida
+
+
+def concluir_webhook(con, ids: list) -> None:
+    """Marca como processadas — nunca reprocessa a mesma mensagem."""
+    if not ids:
+        return
+    ts = agora().isoformat(timespec="seconds")
+    for mid in ids:
+        con.execute(
+            "UPDATE rival_mensagens SET processado = 1, recebido_em = "
+            "CASE WHEN recebido_em = '' THEN ? ELSE recebido_em END WHERE messageid = ?",
+            (ts, mid))
+    con.commit()
 
 
 def mensagens_do_grupo(jid: str, limite: int = 20) -> list[dict]:
@@ -1222,6 +1275,7 @@ def clonador_cfg(con) -> dict:
         "intervalo_seg": 180,
         "janela_min": 90,
         "reclonar_apos_horas": 20,
+        "poll_seg": 600,
     }
     cfg = config_json(con, "clonador", {})
     return {**padrao, **{k: v for k, v in cfg.items() if v is not None}}
@@ -1245,6 +1299,7 @@ def garantir_config(con) -> int:
             "intervalo_seg": 180,
             "janela_min": 90,
             "reclonar_apos_horas": 20,
+            "poll_seg": 600,
         },
         "ritmo": {
             "envios_por_dia": list(ENVIOS_POR_DIA),

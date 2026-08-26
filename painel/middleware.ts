@@ -16,5 +16,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // tudo protegido, exceto login, health, tracking futuro e estáticos
-  matcher: ["/((?!login|api/login|api/health|r/|_next|favicon.ico).*)"],
+  matcher: ["/((?!login|api/login|api/health|api/webhook|r/|_next|favicon.ico).*)"],
 };

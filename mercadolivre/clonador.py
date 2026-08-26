@@ -463,11 +463,31 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
     for jid in cfg['grupos']:
         chave = f"clone_visto3_{jid}"   # v3: reprocessa a janela no deploy do re-clone
         ja_visto = set(filter(None, ler_estado(con, chave).split(",")))
-        try:
-            mensagens = mensagens_do_grupo(jid)
-        except (HttpErro, RuntimeError) as e:
-            aviso(f"  {jid}: {e}")
-            continue
+        # 1) o que a uazapi já entregou por webhook (caminho rápido)
+        do_webhook = mensagens_do_webhook(con, jid)
+        ids_webhook = [m["messageid"] for m in do_webhook]
+
+        # 2) rede de segurança: relê o histórico de vez em quando. Existe
+        # porque webhook não tem segunda chance — se o painel estiver
+        # reiniciando na hora do aviso, aquela oferta se perderia.
+        mensagens = list(do_webhook)
+        chave_poll = f"clone_poll_{jid}"
+        ultimo = ler_estado(con, chave_poll)
+        vencido = True
+        if ultimo:
+            try:
+                vencido = (agora() - datetime.fromisoformat(ultimo)).total_seconds() \
+                    >= cfg.get("poll_seg", 600)
+            except ValueError:
+                vencido = True
+        if vencido or not ids_webhook:
+            try:
+                mensagens += mensagens_do_grupo(jid)
+                gravar_estado(con, chave_poll, agora().isoformat(timespec="seconds"))
+            except (HttpErro, RuntimeError) as e:
+                aviso(f"  {jid}: {e}")
+                if not ids_webhook:
+                    continue
 
         vistos_agora: list[str] = []
         for m in mensagens:
@@ -581,6 +601,7 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
         if not seco:
             con.commit()
             gravar_estado(con, chave, ",".join(vistos_agora[:60]))
+            concluir_webhook(con, ids_webhook)
 
     if novas:
         ok(f"BLOCO 4 — {novas} oferta(s) do rival na fila")
