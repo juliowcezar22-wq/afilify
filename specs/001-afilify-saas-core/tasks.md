@@ -74,7 +74,7 @@ pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
       código está na tela (R5, FR-012)
 - [x] T018 [US1] Tela de conexão: QR em ≤10s, mudança de estado sem recarga, expiração com
       novo código sob demanda, número mascarado e perfil ao conectar
-- [ ] T019 [US1] Sincronizar grupos com cache em `grupo_conexao` e "Última sincronização"
+- [x] T019 [US1] Sincronizar grupos com cache em `grupo_conexao` e "Última sincronização"
       (FR-015, FR-016)
 - [ ] T020 [US1] Detecção de queda e reconexão, com aviso no Dashboard e nas automações
       afetadas (FR-014)
@@ -82,7 +82,7 @@ pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
       a conexão (FR-022)
 - [x] T022 [P] [US1] Testes: máquina de estados completa, expiração de código, queda,
       reconexão, remoção bloqueada
-- [ ] T023 [US1] Validação real na instância `Pessoal`: percorrer os seis cenários de aceitação
+- [x] T023 [US1] Validação real na instância `Pessoal`: percorrer os seis cenários de aceitação
       de US1 e registrar em `VALIDATION.md`
 
 **Checkpoint**: um WhatsApp conecta, sobrevive a refresh e reconecta — sem sair da Afilify.

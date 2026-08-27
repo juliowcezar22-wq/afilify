@@ -22,7 +22,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 |---|---|---|
 | 1 — Fundação bloqueante | T001–T007 | 6 (falta T005) |
 | 2 — Contexto explícito no motor | T008–T012 | 0 |
-| 3 — Conexão WhatsApp (US1) | T013–T023 | 7 |
+| 3 — Conexão WhatsApp (US1) | T013–T023 | 9 |
 | 4 — Projetos e Automações (US3) | T024–T030 | 0 |
 | 5 — Fonte configurável (US4) | T031–T041 | 0 |
 | 6 — Publicações e destinos (US5) | T042–T049 | 0 |
@@ -108,6 +108,19 @@ serve como grupo de validação sem criar nada novo (D33).
    instância `Pessoal` da conta real. Ela estava desconectada, então nenhuma sessão de WhatsApp
    caiu; foi recriada em seguida. Corrigido: só destruímos o que nós criamos
    (`provisionadaPelaAfilify`), e o teste de integração confirma que a conta adotada sobrevive.
+
+- **T023 · US1 validada pelo dono** — conexão criada e pareada por dentro da Afilify; a
+  instância nasceu na conta do provedor e aparece lá como `connected`. Os seis cenários de
+  aceitação da US1 estão cobertos.
+- **Limite de conexões — falha encontrada pelo uso real** — o painel do provedor mostrou
+  "3 total de instâncias" com limite de 2, o que parecia excesso. Não era: o limite é de
+  instâncias **conectadas**, e havia 2. Mas a checagem da Afilify estava errada em dois pontos:
+  contava conexões **criadas** (recusaria o usuário cedo demais, com uma conta desconectada
+  ocupando lugar que não ocupa) e **nenhum dos dois clientes tratava 429** — atingir o limite
+  viraria "Algo deu errado por aqui", sem dizer o que fazer.
+  Corrigido nos dois lados; 503 também passou a ter mensagem própria. Provado com o limite
+  real: adotar a terceira instância passa, conectar devolve
+  "Todos os seus WhatsApps disponíveis já estão conectados. Desconecte um antes de conectar outro."
 
 ### 2026-08-26
 

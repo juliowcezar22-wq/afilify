@@ -99,7 +99,7 @@ export async function adicionarWhatsApp(nome: string, adotarIdentificador = ""):
   if (!limite.pode)
     throw new ErroDeAcao(
       "limite_do_plano",
-      `Seu plano permite ${limite.limite} conexões. Remova uma antes de adicionar outra.`,
+      `Seu plano permite ${limite.limite} WhatsApp${limite.limite === 1 ? "" : "s"} conectado${limite.limite === 1 ? "" : "s"} ao mesmo tempo. Desconecte um antes de conectar outro.`,
       429,
     );
 
@@ -299,6 +299,8 @@ export async function remover(id: string, confirmado: boolean): Promise<{ pausad
 
 function comoErroDeAcao(e: unknown): ErroDeAcao {
   if (e instanceof ErroDeAcao) return e;
+  if (e instanceof msg.ErroLimiteDeConexoes)
+    return new ErroDeAcao("limite_de_conexoes", e.paraUsuario, 429);
   if (e instanceof msg.ErroMensageria)
     return new ErroDeAcao("plataforma_indisponivel", e.paraUsuario, 502);
   return new ErroDeAcao(

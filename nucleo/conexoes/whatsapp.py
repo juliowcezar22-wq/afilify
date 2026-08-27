@@ -57,6 +57,18 @@ VALIDADE_PARCODE_SEG = 300
 TEMPO_LIMITE = 25
 
 
+class ErroLimiteDeConexoes(RuntimeError):
+    """Todas as vagas de conexão simultânea estão ocupadas.
+
+    Separado porque a saída é diferente de qualquer outra falha: tentar de
+    novo não resolve — é preciso desconectar uma conta antes.
+    """
+
+    mensagem_usuario = (
+        "Todos os seus WhatsApps disponíveis já estão conectados. "
+        "Desconecte um antes de conectar outro.")
+
+
 class ErroWhatsApp(RuntimeError):
     """Falha ao falar com a plataforma de mensagens.
 
@@ -143,6 +155,15 @@ def _requisitar(caminho: str, metodo: str = "GET", corpo=None,
             raise ErroWhatsApp(
                 f"HTTP {e.code} em {caminho}",
                 "Esta conexão de WhatsApp perdeu o acesso. Reconecte a conta.") from e
+        # O limite é de contas CONECTADAS ao mesmo tempo, não de contas
+        # criadas: criar é livre, conectar é que ocupa vaga.
+        if e.code == 429:
+            raise ErroLimiteDeConexoes(f"HTTP 429 em {caminho}") from e
+        if e.code == 503:
+            raise ErroWhatsApp(
+                f"HTTP 503 em {caminho}",
+                "O serviço de mensagens está sem capacidade no momento. "
+                "Tente de novo em instantes.") from e
         raise ErroWhatsApp(f"HTTP {e.code} em {caminho}") from e
     except urllib.error.URLError as e:
         raise ErroWhatsApp(f"rede: {e}") from e

@@ -42,6 +42,17 @@ export type GrupoRemoto = {
   participantes: number;
 };
 
+/**
+ * Todas as vagas de conexão simultânea estão ocupadas.
+ *
+ * Erro separado porque a saída é diferente de qualquer outra falha: não
+ * adianta tentar de novo — é preciso desconectar uma conta antes.
+ */
+export class ErroLimiteDeConexoes extends Error {
+  readonly paraUsuario =
+    "Todos os seus WhatsApps disponíveis já estão conectados. Desconecte um antes de conectar outro.";
+}
+
 /** Erro com uma face para o usuário e outra para o registro técnico. */
 export class ErroMensageria extends Error {
   readonly paraUsuario: string;
@@ -91,6 +102,17 @@ async function chamar(
     throw new ErroMensageria(
       `${resposta.status} em ${caminho}`,
       "Esta conexão de WhatsApp perdeu o acesso. Reconecte a conta.",
+    );
+  // O limite é de contas CONECTADAS ao mesmo tempo, não de contas criadas.
+  // Criar é livre; conectar é que ocupa vaga — e é aqui que a plataforma
+  // recusa. Sem esta tradução, o usuário leria "algo deu errado" quando o
+  // problema tem solução óbvia: desconectar uma conta que ele não usa.
+  if (resposta.status === 429)
+    throw new ErroLimiteDeConexoes(`429 em ${caminho}`);
+  if (resposta.status === 503)
+    throw new ErroMensageria(
+      `503 em ${caminho}`,
+      "O serviço de mensagens está sem capacidade no momento. Tente de novo em instantes.",
     );
   if (!resposta.ok) throw new ErroMensageria(`${resposta.status} em ${caminho}`);
   const texto = await resposta.text();

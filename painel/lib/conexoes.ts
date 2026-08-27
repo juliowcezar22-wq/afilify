@@ -232,10 +232,19 @@ export async function guardarGrupos(conexaoId: string, grupos: Grupo[]): Promise
 
 /* ── limites de plano ───────────────────────────────────────────────── */
 
-export async function podeAdicionarConexao(): Promise<{ pode: boolean; limite: number; atual: number }> {
+/**
+ * O limite que importa é de conexões ATIVAS ao mesmo tempo — é assim que a
+ * plataforma de mensagens cobra a vaga, e foi assim que aprendemos na
+ * prática: contar conexões criadas recusaria o usuário cedo demais, com uma
+ * conta desconectada ocupando um lugar que ela não ocupa de verdade.
+ */
+export async function podeAdicionarConexao(): Promise<{ pode: boolean; limite: number; ativas: number }> {
   const l = await uma("SELECT max_conexoes FROM limites_plano WHERE workspace_id = ?", [WORKSPACE]);
   const limite = Number(l?.max_conexoes ?? 5);
-  const c = await uma("SELECT COUNT(*) AS n FROM conexoes WHERE workspace_id = ?", [WORKSPACE]);
-  const atual = Number(c?.n ?? 0);
-  return { pode: atual < limite, limite, atual };
+  const c = await uma(
+    "SELECT COUNT(*) AS n FROM conexoes WHERE workspace_id = ? AND estado = 'conectado'",
+    [WORKSPACE],
+  );
+  const ativas = Number(c?.n ?? 0);
+  return { pode: ativas < limite, limite, ativas };
 }

@@ -35,7 +35,8 @@ instância de produção, nunca no grupo real (D33).
 | 8 | Gerar novo código depois de expirar | `codigo_expirado` → `aguardando_leitura` com código novo | 2026-08-27 | ✓ |
 | 9 | Sincronizar grupos sem conexão explica o que fazer | "Conecte esta conta antes de sincronizar os grupos." | 2026-08-27 | ✓ |
 | 10 | Remover conexão adotada NÃO destrói a conta do usuário | Conexão criada adotando `Pessoal`, removida; instância continua na conta | 2026-08-27 | ✓ (após correção) |
-| 11 | Usuário escaneia o QR e a conta conecta | — | — | **pendente — exige você com o celular** |
+| 11 | Usuário escaneia o QR e a conta conecta | Feito pelo dono em 27/08: instância `Teste` criada pela Afilify e pareada; aparece no painel do provedor como `connected`, perfil "Júlio César - B2C" | 2026-08-27 | ✓ |
+| 12 | Limite de conexões simultâneas é respeitado e explicado | Com as 2 vagas ocupadas, adotar a 3ª instância passou (não ocupa vaga) e conectar devolveu 429 → "Todos os seus WhatsApps disponíveis já estão conectados. Desconecte um antes de conectar outro." | 2026-08-27 | ✓ |
 
 ## Contratos externos verificados
 
