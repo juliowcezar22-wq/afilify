@@ -1,4 +1,8 @@
 import Link from "next/link";
+import * as operacao from "@/lib/operacao";
+import { listarProjetos as listarProjetosDaConta } from "@/lib/projetos-repo";
+import { Cartao as CartaoOp } from "@/components/ui/cartao";
+import { Selo as SeloOp } from "@/components/ui/selo";
 import { todas, uma } from "@/lib/dados";
 import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
 import {
@@ -124,8 +128,51 @@ export default async function Ofertas({ searchParams }: { searchParams: Promise<
 
   const temFiltro = Boolean(b.q || b.status || b.origem);
 
+
+  // Ofertas dos projetos criados na interface. O bloco legado abaixo segue
+  // servindo os projetos que ainda vêm de arquivo.
+  const ofertasNovas = await (async () => {
+    try {
+      const saida: Array<{ projeto: string; linhas: operacao.OfertaLinha[] }> = [];
+      for (const proj of await listarProjetosDaConta()) {
+        const linhas = await operacao.ofertas(proj.id, 20);
+        if (linhas.length) saida.push({ projeto: proj.nome, linhas });
+      }
+      return saida;
+    } catch {
+      return [];
+    }
+  })();
+
   return (
     <div className="mx-auto max-w-6xl">
+      {ofertasNovas.map((g) => (
+        <CartaoOp key={g.projeto} className="mb-4" titulo={g.projeto}>
+          <ul className="grid grid-cols-1 gap-3">
+            {g.linhas.map((o) => (
+              <li
+                key={o.id}
+                className="grid grid-cols-1 gap-1 border-t border-linha pt-3 first:border-0 first:pt-0"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">{o.nome}</span>
+                  <SeloOp
+                    tom={o.estado === "publicada" ? "ok" : o.estado === "retida" ? "alerta" : "neutro"}
+                  >
+                    {operacao.rotuloOferta(o.estado)}
+                  </SeloOp>
+                </div>
+                <p className="text-sm text-tinta2">
+                  {o.origem}
+                  {o.desconto ? ` · −${o.desconto}%` : ""}
+                  {o.preco != null ? ` · ${reais(o.preco)}` : ""}
+                </p>
+                {o.motivo && <p className="text-sm text-alerta">{o.motivo}</p>}
+              </li>
+            ))}
+          </ul>
+        </CartaoOp>
+      ))}
       <CabecalhoPagina
         titulo="Ofertas"
         descricao={

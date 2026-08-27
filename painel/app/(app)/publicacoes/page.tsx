@@ -1,4 +1,8 @@
 import { todas } from "@/lib/dados";
+import * as operacaoNova from "@/lib/operacao";
+import { listarProjetos as listarProjetosNovos } from "@/lib/projetos-repo";
+import { Cartao as CartaoPub } from "@/components/ui/cartao";
+import { Selo as SeloPub } from "@/components/ui/selo";
 import { contextoProjeto, condicaoProjeto } from "@/lib/contexto";
 import { nomeDoProjeto } from "@/lib/projetos";
 import {
@@ -90,8 +94,49 @@ export default async function Publicacoes() {
 
   const varios = !ctx.ativo && Object.keys(planos).length > 1;
 
+
+  // Publicações dos projetos criados na interface: uma linha por envio,
+  // com destino e motivo legível.
+  const publicacoesNovas = await (async () => {
+    try {
+      const saida: Array<{ projeto: string; linhas: operacaoNova.PublicacaoLinha[] }> = [];
+      for (const proj of await listarProjetosNovos()) {
+        const linhas = await operacaoNova.publicacoes(proj.id, 20);
+        if (linhas.length) saida.push({ projeto: proj.nome, linhas });
+      }
+      return saida;
+    } catch {
+      return [];
+    }
+  })();
+
   return (
     <div className="mx-auto max-w-5xl">
+      {publicacoesNovas.map((g) => (
+        <CartaoPub key={g.projeto} className="mb-4" titulo={g.projeto}>
+          <ul className="grid grid-cols-1 gap-3">
+            {g.linhas.map((p) => (
+              <li
+                key={p.id}
+                className="grid grid-cols-1 gap-1 border-t border-linha pt-3 first:border-0 first:pt-0"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">{p.oferta}</span>
+                  <SeloPub tom={p.estado === "enviada" ? "ok" : p.estado === "falhou" ? "erro" : "neutro"}>
+                    {operacaoNova.rotuloPublicacao(p.estado)}
+                  </SeloPub>
+                </div>
+                <p className="text-sm text-tinta2">
+                  {p.destino}
+                  {p.ciclo > 1 ? " · voltou por queda de preço" : ""}
+                  {p.tentativa > 1 ? ` · ${p.tentativa}ª tentativa` : ""}
+                </p>
+                {p.motivo && <p className="text-sm text-erro">{p.motivo}</p>}
+              </li>
+            ))}
+          </ul>
+        </CartaoPub>
+      ))}
       <CabecalhoPagina
         titulo="Publicações"
         descricao="O que está por sair e o que já foi publicado nos seus destinos."

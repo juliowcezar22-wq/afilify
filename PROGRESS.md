@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 6 — Publicações e destinos (Fases 1–5 fechadas)
+**Fase atual**: 7 — Ritmo, Dashboard e conexões (Fases 1–6 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -25,7 +25,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 | 3 — Conexão WhatsApp (US1) | T013–T023 | ✓ 11 de 11 |
 | 4 — Projetos e Automações (US3) | T024–T030 | ✓ 7 de 7 |
 | 5 — Fonte configurável (US4) | T031–T041 | ✓ 11 de 11 |
-| 6 — Publicações e destinos (US5) | T042–T049 | 0 |
+| 6 — Publicações e destinos (US5) | T042–T049 | ✓ 8 de 8 |
 | 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | 0 |
 | 8 — Mensagens, desempenho, área técnica | T056–T060 | 0 |
 | 9 — Fechamento | T061–T067 | 0 |
@@ -139,6 +139,33 @@ serve como grupo de validação sem criar nada novo (D33).
 
 **Fases 1 e 3 fechadas com verificação completa.**
 
+
+### Fase 6 — publicações, destinos e proteção da conta (2026-08-27)
+
+Três coisas que o modelo antigo não conseguia, agora funcionando:
+
+- **A mesma oferta em dois destinos.** Cada envio é uma Publicação com resultado próprio: uma
+  pode sair e a outra falhar, e as duas aparecem com seu motivo.
+- **A mesma oferta de novo, quando o preço cai.** O ciclo sobe e a chave de idempotência muda —
+  sem abrir brecha para mensagem repetida. Oscilação de centavos não republica: a comparação é
+  com o preço **da publicação anterior**, não com a última coleta.
+- **Nada se perde por falha nossa.** O estado `retida` guarda a oferta e o motivo; quando a
+  causa é resolvida, ela volta sozinha. Liberar um motivo não solta o outro — reconectar o
+  WhatsApp não pode soltar ofertas que esperam link do Mercado Livre.
+
+**Proteção da conta** (`nucleo/protecao.py`): o teto vive na **conexão**, não na automação —
+duas automações no mesmo número somam um volume que nenhuma delas tem sozinha, e quem paga é o
+número. Não aparece como campo; aparece como motivo quando segura: "Segurando os envios por
+enquanto para proteger a saúde da sua conta." Destinos da mesma oferta saem espaçados 45s.
+
+**Aviso de volume somado**: apontar duas automações para o mesmo grupo é permitido — pode ser o
+que o usuário quer — mas ele lê "Perfumes · Ofertas também publica neste grupo — o volume dele
+vai somar as duas". Sem isso, o grupo dobraria de volume sem nenhuma automação parecer ter mudado.
+
+As telas de Ofertas e Publicações mostram o modelo novo com vocabulário de produto, verificado
+contra o HTML servido: nenhum `retida`, `conexao_mercadolivre` ou id de grupo vaza.
+
+226 testes do motor + 16 do painel.
 
 ### Fase 5 — fonte configurável e teste de busca (2026-08-27)
 

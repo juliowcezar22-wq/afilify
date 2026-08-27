@@ -142,18 +142,18 @@ o coletado corresponde à amostra.
 
 ## Fase 6 — US5 e destinos múltiplos (P1)
 
-- [ ] T042 [US5] `publicacao` substitui `entregas` no publicador, com identidade própria (R9)
-- [ ] T043 [US5] Múltiplos destinos com intervalo entre eles (D30, FR-065)
-- [ ] T044 [US5] Teto de segurança por conexão, com motivo visível quando segura envio
+- [x] T042 [US5] `publicacao` substitui `entregas` no publicador, com identidade própria (R9)
+- [x] T043 [US5] Múltiplos destinos com intervalo entre eles (D30, FR-065)
+- [x] T044 [US5] Teto de segurança por conexão, com motivo visível quando segura envio
       (FR-046), apoiado por `wa_messages_limits` e `updateDelaySettings`
-- [ ] T045 [US5] Estado `retida`: falha de conexão ou de link não descarta oferta; retoma
+- [x] T045 [US5] Estado `retida`: falha de conexão ou de link não descarta oferta; retoma
       sozinha (FR-042, SC-006)
-- [ ] T046 [US5] Regra de repetição por queda de preço, com monitoramento isento (D31, FR-066/67)
-- [ ] T047 [P] [US5] Telas de Ofertas e Publicações sob o modelo novo, com motivo legível e
+- [x] T046 [US5] Regra de repetição por queda de preço, com monitoramento isento (D31, FR-066/67)
+- [x] T047 [P] [US5] Telas de Ofertas e Publicações sob o modelo novo, com motivo legível e
       nova tentativa
-- [ ] T048 [P] [US5] Testes: dois destinos geram duas publicações independentes; teto segura;
+- [x] T048 [P] [US5] Testes: dois destinos geram duas publicações independentes; teto segura;
       oferta retida retoma; repetição só com queda; clone não é bloqueado
-- [ ] T049 [US5] Aviso ao apontar dois destinos para o mesmo grupo (edge case da spec)
+- [x] T049 [US5] Aviso ao apontar dois destinos para o mesmo grupo (edge case da spec)
 
 ---
 

@@ -141,3 +141,40 @@ test("conexão que sumiu do banco vira falta acionável", () => {
   });
   assert.deepEqual(faltas, ["reconectar a conta usada por esta automação"]);
 });
+
+/* ── vocabulário da operação ────────────────────────────────────────── */
+
+const ESTADO_OFERTA = {
+  nova: "Encontrada",
+  pronta: "Aguardando publicação",
+  retida: "Aguardando",
+  publicada: "Publicada",
+  ignorada: "Ignorada",
+  expirada: "Expirou antes de publicar",
+};
+const RETENCAO = {
+  sem_link: "Aguardando o link de afiliado ser gerado.",
+  conexao_mercadolivre:
+    "Sua conexão com o Mercado Livre expirou. Reconecte sua conta para continuar gerando ofertas.",
+  conexao_destino: "A conta de WhatsApp desta automação está desconectada.",
+};
+
+test("todo estado de oferta tem tradução — nenhum vaza como palavra de banco", () => {
+  for (const estado of ["nova", "pronta", "retida", "publicada", "ignorada", "expirada"]) {
+    const rotulo = ESTADO_OFERTA[estado];
+    assert.ok(rotulo, `sem rótulo: ${estado}`);
+    assert.ok(!rotulo.includes("_"));
+    assert.equal(rotulo[0], rotulo[0].toUpperCase());
+  }
+});
+
+test("motivo de retenção aponta a saída, não só o problema", () => {
+  assert.match(RETENCAO.conexao_mercadolivre, /Reconecte/);
+  assert.match(RETENCAO.conexao_destino, /desconectada/);
+});
+
+test("motivo desconhecido não vira código na tela", () => {
+  const legivel = RETENCAO["erro_xyz_42"] ?? "Esta oferta está aguardando para ser publicada.";
+  assert.ok(!legivel.includes("xyz"));
+  assert.ok(!legivel.includes("_"));
+});
