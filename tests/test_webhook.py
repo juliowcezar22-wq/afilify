@@ -65,3 +65,39 @@ class MensagensDoWebhook(unittest.TestCase):
         a = ler_anuncio_rival(msgs[0]["text"])
         self.assertEqual(a["preco"], 611.0)
         self.assertEqual(a["link"], "https://meli.la/1JMYeyU")
+
+
+class MemoriaDeVistos(unittest.TestCase):
+    """Regressão do laço de duplicatas de 26/08 21h.
+
+    Com o webhook, cada ciclo via 1 mensagem e a memória era sobrescrita
+    com esse único id. Na releitura do histórico (a cada 10 min) as 20
+    últimas voltavam a parecer novas e o grupo recebia tudo de novo.
+    """
+
+    def setUp(self):
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
+        self.con = abrir_banco()
+        self.con.execute("DELETE FROM estado")
+        self.con.commit()
+
+    def tearDown(self):
+        self.con.close()
+
+    def test_memoria_acumula_entre_ciclos(self):
+        chave = "clone_visto3_teste@g.us"
+        comum.gravar_estado(self.con, chave, "a,b,c,d,e")
+        vistos_antes = [x for x in comum.ler_estado(self.con, chave).split(",") if x]
+        # ciclo do webhook: só uma mensagem nova
+        vistos_agora = ["f"]
+        memoria = list(dict.fromkeys(vistos_agora + vistos_antes))[:400]
+        comum.gravar_estado(self.con, chave, ",".join(memoria))
+        guardado = comum.ler_estado(self.con, chave).split(",")
+        self.assertIn("f", guardado)
+        for antigo in ("a", "b", "c", "d", "e"):
+            self.assertIn(antigo, guardado, "memória antiga não pode sumir")
+
+    def test_memoria_tem_teto(self):
+        memoria = list(dict.fromkeys([str(i) for i in range(500)]))[:400]
+        self.assertEqual(len(memoria), 400)

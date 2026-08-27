@@ -462,7 +462,8 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
 
     for jid in cfg['grupos']:
         chave = f"clone_visto3_{jid}"   # v3: reprocessa a janela no deploy do re-clone
-        ja_visto = set(filter(None, ler_estado(con, chave).split(",")))
+        vistos_antes = [x for x in ler_estado(con, chave).split(",") if x]
+        ja_visto = set(vistos_antes)
         # 1) o que a uazapi já entregou por webhook (caminho rápido)
         do_webhook = mensagens_do_webhook(con, jid)
         ids_webhook = [m["messageid"] for m in do_webhook]
@@ -600,7 +601,13 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
 
         if not seco:
             con.commit()
-            gravar_estado(con, chave, ",".join(vistos_agora[:60]))
+            # ACUMULA o histórico de vistos. Antes isto sobrescrevia com o
+            # que apareceu no ciclo — e como o webhook traz 1 mensagem por
+            # vez, a memória era zerada; na leitura seguinte do histórico
+            # (rede de segurança) as 20 últimas voltavam a parecer novas e
+            # o grupo recebia tudo de novo, em laço de 10 em 10 minutos.
+            memoria = list(dict.fromkeys(vistos_agora + vistos_antes))[:400]
+            gravar_estado(con, chave, ",".join(memoria))
             concluir_webhook(con, ids_webhook)
 
     if novas:
