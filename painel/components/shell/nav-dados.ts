@@ -10,7 +10,10 @@ export type GrupoNav = { titulo: string; itens: ItemNav[] };
 export const NAVEGACAO: GrupoNav[] = [
   {
     titulo: "Geral",
-    itens: [{ rotulo: "Dashboard", href: "/", icone: "dashboard" }],
+    itens: [
+      { rotulo: "Dashboard", href: "/", icone: "dashboard" },
+      { rotulo: "Projetos", href: "/projetos", icone: "projeto" },
+    ],
   },
   {
     titulo: "Operação",

@@ -95,15 +95,15 @@ pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
 
 **Teste independente**: criar projeto pela interface, ligar a automação, ver publicação sair.
 
-- [ ] T024 [P] [US3] Rotas de projeto: criar, renomear, arquivar, duplicar (api-painel.md)
-- [ ] T025 [P] [US3] Rotas de automação: criar, editar, ativar, pausar, excluir
-- [ ] T026 [US3] Regra de ativação: recusa com pendências em linguagem comum; estado
+- [x] T024 [P] [US3] Rotas de projeto: criar, renomear, arquivar, duplicar (api-painel.md)
+- [x] T025 [P] [US3] Rotas de automação: criar, editar, ativar, pausar, excluir
+- [x] T026 [US3] Regra de ativação: recusa com pendências em linguagem comum; estado
       `impedida` quando falta conexão ou destino (FR-002, edge case da spec)
-- [ ] T027 [US3] Seletor de projeto e automação no shell, sobre o contexto de projeto existente
-- [ ] T028 [US3] Telas de criação com escolha do tipo de nicho (FR-038a, FR-039)
-- [ ] T029 [P] [US3] Testes de isolamento entre projetos: ofertas, publicações, mensagens e
+- [x] T027 [US3] Seletor de projeto e automação no shell, sobre o contexto de projeto existente
+- [x] T028 [US3] Telas de criação com escolha do tipo de nicho (FR-038a, FR-039)
+- [x] T029 [P] [US3] Testes de isolamento entre projetos: ofertas, publicações, mensagens e
       ritmo de um nunca aparecem no outro (FR-003, SC-007)
-- [ ] T030 [US3] Duplicação nasce pausada, sem histórico (US3 cenário 5)
+- [x] T030 [US3] Duplicação nasce pausada, sem histórico (US3 cenário 5)
 
 **Checkpoint**: um projeto novo nasce e opera sem tocar em arquivo nem reiniciar nada.
 

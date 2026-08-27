@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 4 — Projetos e Automações (Fases 1, 2 e 3 fechadas)
+**Fase atual**: 5 — Fonte configurável (Fases 1–4 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -23,7 +23,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 | 1 — Fundação bloqueante | T001–T007 | ✓ 7 de 7 |
 | 2 — Contexto explícito no motor | T008–T012 | ✓ 5 de 5 |
 | 3 — Conexão WhatsApp (US1) | T013–T023 | ✓ 11 de 11 |
-| 4 — Projetos e Automações (US3) | T024–T030 | 0 |
+| 4 — Projetos e Automações (US3) | T024–T030 | ✓ 7 de 7 |
 | 5 — Fonte configurável (US4) | T031–T041 | 0 |
 | 6 — Publicações e destinos (US5) | T042–T049 | 0 |
 | 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | 0 |
@@ -139,6 +139,33 @@ serve como grupo de validação sem criar nada novo (D33).
 
 **Fases 1 e 3 fechadas com verificação completa.**
 
+
+### Fase 4 — projetos e automações (2026-08-27)
+
+O que a Fase 2 destravou virou produto: criar projeto, criar automação, ligar e pausar — tudo
+pela tela, sem arquivo, sem reinício.
+
+**A regra que dá o tom: automação não liga pela metade.** Sem fonte, sem destino, ou com a
+conexão caída, a ativação é recusada e a tela diz exatamente o que falta, em frases de gente
+("escolher para onde publicar", "conectar \"Principal\" — ela está desconectada"). Nada de
+"ativa com um problema" publicando no vazio.
+
+Verificado ponta a ponta contra o serviço real:
+
+| Passo | Resultado |
+|---|---|
+| Criar projeto com tipo de nicho | Perfumes · curadoria de perfumes aplicada |
+| Nome repetido | "Você já tem um projeto chamado Perfumes." |
+| Ligar sem fonte nem destino | recusado, 2 pendências nomeadas |
+| Ligar com a conexão caída | recusado, dizendo qual conta reconectar |
+| Ligar com tudo pronto | ativa |
+| Supervisor enxerga a automação nova | "Perfumes · Ofertas Mercado Livre" |
+| Duplicar | cópia nasce pausada, com a receita, sem histórico |
+| Mesma oferta em dois projetos | sem colisão, cada um vê a sua |
+
+**Defeito encontrado no teste**: duplicar devolvia `estado: ativo` para um projeto que ficava
+`pausado` no banco — eu retornava o objeto lido antes de pausar. A tela mostraria um estado que
+não existe. Corrigido e conferido contra o banco.
 
 ### Fase 2 — contexto explícito no motor (2026-08-27)
 

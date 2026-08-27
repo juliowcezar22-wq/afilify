@@ -32,12 +32,14 @@ if [ "$ABERTAS" -eq 0 ] && [ "$MARCADOR" = "$ASSINATURA" ]; then
 fi
 
 # anti-loop: contador de bloqueios consecutivos (independente da árvore,
-# que muda a cada atualização de PROGRESS); honra stop_hook_active
+# que muda a cada atualização de PROGRESS); honra stop_hook_active.
+# O teto é alto de propósito — o trabalho é longo e o dono pediu que ele não
+# pare a cada fase — mas existe: guardrail, não motor perpétuo.
 CONTA=$(cat "$RAIZ/.harness/stop-blocks" 2>/dev/null || echo 0)
 case "$CONTA" in *[!0-9]*) CONTA=0 ;; esac
 ATIVO=0
 case "$ENTRADA" in *'"stop_hook_active":true'*|*'"stop_hook_active": true'*) ATIVO=1 ;; esac
-if [ "$CONTA" -ge 2 ] || { [ "$ATIVO" -eq 1 ] && [ "$CONTA" -ge 1 ]; }; then
+if [ "$CONTA" -ge 8 ] || { [ "$ATIVO" -eq 1 ] && [ "$CONTA" -ge 6 ]; }; then
   echo "AVISO stop-guard: liberando após $CONTA bloqueios — revise manualmente ($ABERTAS tasks abertas)." >&2
   rm -f "$RAIZ/.harness/stop-blocks" 2>/dev/null
   exit 0
@@ -54,6 +56,10 @@ echo "$((CONTA + 1))" > "$RAIZ/.harness/stop-blocks"
   if [ "$MARCADOR" != "$ASSINATURA" ]; then
     echo "· verificação completa não corresponde ao estado atual — rode scripts/harness/verify-nucleo.sh"
   fi
-  echo "Continue o ciclo: implementar → validar → revisar → marcar task → próxima."
+  echo
+  "$RAIZ/scripts/harness/ciclo.sh" proxima 2>/dev/null
+  echo
+  echo "Ciclo: implementar → validar com dado real → registrar prova → marcar → próxima."
+  echo "Ao esvaziar a fase: scripts/harness/fase.sh fechar N (roda a verificação completa)."
 } >&2
 exit 2

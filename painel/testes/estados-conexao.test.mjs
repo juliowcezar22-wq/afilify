@@ -79,3 +79,65 @@ test("código exatamente no limite ainda vale", () => {
     "aguardando_leitura",
   );
 });
+
+/* ── pendências de ativação ─────────────────────────────────────────── */
+
+// Mesma regra do serviço, em forma pura: o que falta para uma automação
+// poder trabalhar. A ordem importa — a primeira pendência é a que o usuário
+// resolve primeiro.
+function pendencias({ fontes = [], destinos = [], conexoes = {} }) {
+  const faltas = [];
+  if (fontes.length === 0) faltas.push("escolher de onde vêm as ofertas");
+  else if (!fontes.some((f) => f.ativa)) faltas.push("ligar ao menos uma fonte de ofertas");
+  if (destinos.length === 0) faltas.push("escolher para onde publicar");
+  const usadas = new Set([...destinos, ...fontes].map((r) => r.conexao).filter(Boolean));
+  for (const id of usadas) {
+    const c = conexoes[id];
+    if (!c) faltas.push("reconectar a conta usada por esta automação");
+    else if (c.estado !== "conectado") faltas.push(`conectar "${c.nome}" — ela está desconectada`);
+  }
+  return faltas;
+}
+
+test("automação vazia lista as duas faltas na ordem de resolver", () => {
+  assert.deepEqual(pendencias({}), [
+    "escolher de onde vêm as ofertas",
+    "escolher para onde publicar",
+  ]);
+});
+
+test("fonte existente mas desligada é uma falta diferente de fonte ausente", () => {
+  assert.deepEqual(pendencias({ fontes: [{ ativa: false }], destinos: [{ alvo: "x" }] }), [
+    "ligar ao menos uma fonte de ofertas",
+  ]);
+});
+
+test("conexão desconectada impede ligar, e a frase diz qual conta", () => {
+  const faltas = pendencias({
+    fontes: [{ ativa: true }],
+    destinos: [{ alvo: "x", conexao: "c1" }],
+    conexoes: { c1: { nome: "Principal", estado: "desconectado" } },
+  });
+  assert.equal(faltas.length, 1);
+  assert.match(faltas[0], /Principal/);
+});
+
+test("tudo no lugar não deixa nenhuma falta", () => {
+  assert.deepEqual(
+    pendencias({
+      fontes: [{ ativa: true, conexao: "c1" }],
+      destinos: [{ alvo: "x", conexao: "c1" }],
+      conexoes: { c1: { nome: "Principal", estado: "conectado" } },
+    }),
+    [],
+  );
+});
+
+test("conexão que sumiu do banco vira falta acionável", () => {
+  const faltas = pendencias({
+    fontes: [{ ativa: true }],
+    destinos: [{ alvo: "x", conexao: "some" }],
+    conexoes: {},
+  });
+  assert.deepEqual(faltas, ["reconectar a conta usada por esta automação"]);
+});

@@ -36,6 +36,10 @@ instância de produção, nunca no grupo real (D33).
 | 9 | Sincronizar grupos sem conexão explica o que fazer | "Conecte esta conta antes de sincronizar os grupos." | 2026-08-27 | ✓ |
 | 10 | Remover conexão adotada NÃO destrói a conta do usuário | Conexão criada adotando `Pessoal`, removida; instância continua na conta | 2026-08-27 | ✓ (após correção) |
 | 11 | Usuário escaneia o QR e a conta conecta | Feito pelo dono em 27/08: instância `Teste` criada pela Afilify e pareada; aparece no painel do provedor como `connected`, perfil "Júlio César - B2C" | 2026-08-27 | ✓ |
+| 18 | Projeto e automação criados pela tela, sem arquivo | Projeto "Perfumes" → automação → ligada; supervisor listou "Perfumes · Ofertas Mercado Livre" | 2026-08-27 | ✓ |
+| 19 | Automação não liga pela metade | Sem fonte/destino: 2 pendências; conexão caída: "conectar Principal — ela está desconectada" | 2026-08-27 | ✓ |
+| 20 | Duplicar copia a receita, não o histórico | Cópia pausada, 1 fonte e 1 destino, automação em rascunho, zero ofertas | 2026-08-27 | ✓ (após correção do estado devolvido) |
+| 21 | Mesma oferta em dois projetos não colide | MLB777 inserida nos dois; cada projeto vê exatamente a sua | 2026-08-27 | ✓ |
 | 15 | Refatoração do contexto não mudou o comportamento | Constante a constante contra `perfumes_ml` e `casa_ml_shopee`: cota, janelas, dispersão, proporção, coletas, validade, destino e nicho **idênticos** | 2026-08-27 | ✓ |
 | 16 | Automação do banco sobe sem tocar em arquivo | Subprocesso com `AUTOMACAO_ID`: ritmo, chave e destino vieram do banco (`origem: banco`) | 2026-08-27 | ✓ |
 | 17 | Banco indisponível não derruba a operação | `AUTOMACAO_ID` inexistente → cai no arquivo do perfil, sem erro | 2026-08-27 | ✓ |
