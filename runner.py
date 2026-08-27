@@ -2,18 +2,23 @@
 """
 RUNNER — supervisor multi-projeto do Afilify.
 
-Um processo-filho por perfil ativo, rodando o MESMO daemon de sempre
-(`agente.py ml rodar` com PERFIL=<nome>). O isolamento vem do que já existe:
-trava por perfil, estado prefixado, coluna perfil no banco.
+Um processo-filho por automação ativa. As automações vêm de duas fontes, e o
+supervisor trata as duas do mesmo jeito:
 
-Por que supervisor e não um laço único trocando contexto: os módulos do motor
-resolvem o perfil no import (variáveis derivadas em nucleo.comum). Trocar isso
-em runtime exigiria reescrever assinaturas de dezenas de funções — risco alto
-para ganho nenhum, já que N filhos custam ~10 MB cada. A refatoração de
-assinaturas acontece naturalmente quando a config migrar para o banco (Fase 4).
+    do BANCO    automações criadas na interface (AUTOMACAO_ID=...)
+    de ARQUIVO  perfis/*.py — a operação de sempre (PERFIL=...)
 
-    python3 agente.py runner          sobe todos os perfis rodáveis
-    PERFIS=perfumes_ml,casa_ml_shopee python3 agente.py runner   (subconjunto)
+Um processo por automação continua sendo o desenho certo: o isolamento é
+real (falha de uma não derruba outra), custa ~10 MB cada, e a trava por
+automação impede dois processos disputando a mesma fila.
+
+O que mudou: QUAL automação rodar deixou de ser uma lista de arquivos e
+passou a ser uma consulta. Criar um projeto na tela e ligá-lo faz este
+supervisor subir o processo dele no próximo ciclo — sem editar código, sem
+reiniciar o resto.
+
+    python3 agente.py runner          sobe tudo que está ativo
+    PERFIS=perfumes_ml python3 agente.py runner   (só estes arquivos)
 """
 
 from __future__ import annotations
@@ -60,27 +65,56 @@ def log(msg: str) -> None:
     print(f"{time.strftime('%d/%m %H:%M:%S')} [runner] {msg}", flush=True)
 
 
+def automacoes_do_banco() -> list:
+    """(id, rótulo) das automações ativas. Lista vazia quando não há banco
+    ou o modelo novo ainda não existe — a operação por arquivo segue."""
+    try:
+        from nucleo import comum, contexto
+        con = comum.abrir_banco()
+        try:
+            saida = []
+            for aid in contexto.automacoes_ativas(con):
+                ctx = contexto.Contexto.do_banco(con, aid)
+                pode, motivo = ctx.pronta_para_publicar()
+                if not pode:
+                    log(f"{ctx.projeto_nome} · {ctx.automacao_nome}: pulada — {motivo}")
+                    continue
+                saida.append((aid, f"{ctx.projeto_nome} · {ctx.automacao_nome}"))
+            return saida
+        finally:
+            con.close()
+    except Exception as e:
+        log(f"automações do banco indisponíveis ({type(e).__name__}) — seguindo pelos arquivos")
+        return []
+
+
 class Filho:
-    def __init__(self, p):
-        self.perfil = p
+    """Um processo de automação, venha ela do banco ou de um arquivo."""
+
+    def __init__(self, rotulo: str, ambiente: dict, trava: str):
+        self.rotulo = rotulo
+        self.ambiente = ambiente
+        self.trava = trava
         self.proc: subprocess.Popen | None = None
         self.falhas = 0
         self.proximo_inicio = 0.0
 
-    @property
-    def modulo(self) -> str:
-        # nome do arquivo em perfis/ (casa-ml-shopee → casa_ml_shopee)
-        return self.perfil.nome.replace("-", "_")
+    @classmethod
+    def de_perfil(cls, p) -> "Filho":
+        modulo = p.nome.replace("-", "_")   # casa-ml-shopee → casa_ml_shopee
+        return cls(p.nome, {"PERFIL": modulo, "AUTOMACAO_ID": ""}, p.nome)
+
+    @classmethod
+    def de_automacao(cls, automacao_id: str, rotulo: str) -> "Filho":
+        return cls(rotulo, {"AUTOMACAO_ID": automacao_id}, automacao_id)
 
     def iniciar(self):
-        env = {**os.environ,
-               "PERFIL": self.modulo,
-               "LOG_PREFIXO": f"[{self.perfil.nome}] "}
+        env = {**os.environ, **self.ambiente, "LOG_PREFIXO": f"[{self.rotulo}] "}
         self.proc = subprocess.Popen(
             [sys.executable, os.path.join(RAIZ, "agente.py"), "ml", "rodar"],
             env=env, cwd=RAIZ,
         )
-        log(f"{self.perfil.nome}: filho iniciado (pid {self.proc.pid})")
+        log(f"{self.rotulo}: filho iniciado (pid {self.proc.pid})")
 
     def cuidar(self, agora_ts: float):
         """Reinicia com backoff se o filho morreu com erro."""
@@ -89,12 +123,12 @@ class Filho:
         codigo = self.proc.returncode
         self.proc = None
         if codigo == 0:
-            log(f"{self.perfil.nome}: saiu limpo (código 0) — não reinicio")
+            log(f"{self.rotulo}: saiu limpo (código 0) — não reinicio")
             return
         self.falhas += 1
         espera = min(REINICIO_BASE * (2 ** (self.falhas - 1)), REINICIO_TETO)
         self.proximo_inicio = agora_ts + espera
-        log(f"{self.perfil.nome}: morreu (código {codigo}), "
+        log(f"{self.rotulo}: morreu (código {codigo}), "
             f"reinício {self.falhas} em {espera}s")
 
     def talvez_reiniciar(self, agora_ts: float):
@@ -111,25 +145,33 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _sinal)
     signal.signal(signal.SIGINT, _sinal)
 
+    candidatos: list[Filho] = []
+
+    # 1) automações criadas na interface
+    for automacao_id, rotulo in automacoes_do_banco():
+        candidatos.append(Filho.de_automacao(automacao_id, rotulo))
+
+    # 2) perfis em arquivo — a operação de sempre
     todos = mod_perfil.listar()
     somente = [s.strip() for s in os.environ.get("PERFIS", "").split(",") if s.strip()]
     if somente:
         todos = [p for p in todos if p.nome.replace("-", "_") in somente]
-
     rodar, pulados = mod_perfil.escolher_para_rodar(todos)
     for nome, motivo in pulados:
         log(f"{nome}: pulado — {motivo}")
+    for p in rodar:
+        candidatos.append(Filho.de_perfil(p))
 
     filhos: list[Filho] = []
-    for p in rodar:
-        dono = lock_ocupado(p.nome)
+    for f in candidatos:
+        dono = lock_ocupado(f.trava)
         if dono:
-            log(f"{p.nome}: pulado — já operado pelo pid {dono}")
+            log(f"{f.rotulo}: pulado — já operado pelo pid {dono}")
             continue
-        filhos.append(Filho(p))
+        filhos.append(f)
 
     if not filhos:
-        log("nenhum perfil para rodar — encerrando")
+        log("nenhuma automação para rodar — encerrando")
         return 1
 
     for f in filhos:

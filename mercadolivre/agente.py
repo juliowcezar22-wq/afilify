@@ -318,7 +318,9 @@ def plano_do_dia(con: sqlite3.Connection, momento: datetime) -> dict:
 # Trava POR PERFIL: dois grupos são duas operações independentes — o daemon
 # de casa não pode ser barrado pelo de perfumes. O que continua proibido é
 # dois processos do MESMO perfil (mesmo grupo de WhatsApp).
-ARQUIVO_TRAVA = os.path.join(DADOS, f".lock-{PERFIL_ATIVO}")
+# Trava por AUTOMAÇÃO: duas automações do mesmo projeto rodam lado a lado,
+# mas a mesma automação nunca em dois processos.
+ARQUIVO_TRAVA = os.path.join(DADOS, f".lock-{CHAVE_EXECUCAO}")
 
 
 class Trava:

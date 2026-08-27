@@ -40,7 +40,7 @@ import urllib.request
 import zlib
 from dataclasses import dataclass, field
 
-from nucleo import nicho, perfil
+from nucleo import contexto, nicho, perfil
 from nucleo.nicho import normalizar
 from datetime import datetime, timedelta, timezone
 
@@ -422,35 +422,78 @@ def carregar_env(caminho: str = "") -> None:
 
 carregar_env()
 
-# ── perfil ativo ─────────────────────────────────────────────────────
-# Define o nicho, o grupo de destino e o ritmo. Tudo abaixo lê daqui, e é
-# por isso que dois grupos podem dividir o mesmo banco e o mesmo processo.
-PERFIL = perfil.ativo()
-PERFIL_ATIVO = PERFIL.nome
-nicho.usar(PERFIL.nicho)
+# ── quem estamos operando ────────────────────────────────────────────
+# O motor trabalha uma automação por processo. QUAL automação vem de duas
+# fontes possíveis, e o código abaixo é indiferente a qual delas foi usada:
+#
+#   AUTOMACAO_ID=...   uma automação criada na interface, lida do banco
+#   PERFIL=...         um arquivo perfis/*.py — o jeito de sempre
+#
+# É essa indiferença que permite criar projeto pela tela sem escrever
+# arquivo nem reiniciar nada além do processo daquela automação.
+BANCO = os.environ.get("ML_BANCO", os.path.join(DADOS, "ofertas.db"))
 
-UAZAPI_GRUPO = (PERFIL.grupo_whatsapp
+
+def _contexto_inicial() -> contexto.Contexto:
+    """Resolve o contexto UMA vez, no início do processo.
+
+    Falha ao ler o banco não derruba o motor: ele cai no arquivo do perfil,
+    que é o comportamento de sempre. Um projeto novo indisponível é ruim;
+    a operação viva parar é pior.
+    """
+    automacao_id = os.environ.get("AUTOMACAO_ID", "").strip()
+    if automacao_id:
+        try:
+            con = _abrir_banco_cru()
+            try:
+                return contexto.Contexto.do_banco(con, automacao_id)
+            finally:
+                con.close()
+        except Exception:
+            pass
+    return contexto.Contexto.do_perfil(perfil.ativo())
+
+
+def _abrir_banco_cru():
+    """Conexão mínima para ler o contexto — sem criar schema nem migrar.
+    O banco completo é aberto depois, por abrir_banco()."""
+    if os.environ.get("STORAGE", "sqlite").lower() in ("postgres", "pg"):
+        from nucleo import storage
+        return storage.conectar_pg()
+    con = sqlite3.connect(BANCO, timeout=10)
+    con.row_factory = sqlite3.Row
+    return con
+
+
+CONTEXTO = _contexto_inicial()
+nicho.usar(CONTEXTO.nicho)
+
+# Compatibilidade: os módulos do motor importam estas constantes com
+# `from nucleo.comum import *`. Elas continuam existindo — mas agora DERIVAM
+# do contexto, em vez de serem lidas direto de um arquivo. Trocar a fonte
+# deixou de ser trocar código.
+PERFIL = perfil.ativo()
+PERFIL_ATIVO = CONTEXTO.chave
+# Ofertas pertencem ao PROJETO; plano do dia, batida de vida e trava são de
+# cada AUTOMAÇÃO. No modo antigo os dois coincidem.
+CHAVE_EXECUCAO = CONTEXTO.chave_execucao
+
+UAZAPI_GRUPO = (CONTEXTO.destino_principal
                 or os.environ.get("UAZAPI_GRUPO", "").strip())
 
-# O PERFIL É QUEM MANDA. As constantes homônimas lá em cima são os defaults
-# documentados; estas reatribuições vêm depois e vencem no import. (Um passe
-# de dedup em 19/08 comentou estas linhas por engano — mascarado porque os
-# valores do perfil de perfumes coincidiam com as constantes. Teste cobre.)
-ENVIOS_POR_DIA = PERFIL.envios_por_dia
-ENVIO_INICIO_JANELA = PERFIL.inicio_janela
-ENVIO_FIM_JANELA = PERFIL.fim_janela
-ENVIO_DISPERSAO = PERFIL.dispersao
-PROPORCAO_IMPORTADOS = PERFIL.proporcao_preferidas
-BUSCA_HORAS = PERFIL.busca_horas
-VALIDADE_HORAS = PERFIL.validade_horas
+ENVIOS_POR_DIA = CONTEXTO.ritmo.envios_por_dia
+ENVIO_INICIO_JANELA = CONTEXTO.ritmo.inicio_janela
+ENVIO_FIM_JANELA = CONTEXTO.ritmo.fim_janela
+ENVIO_DISPERSAO = CONTEXTO.ritmo.dispersao
+PROPORCAO_IMPORTADOS = CONTEXTO.ritmo.proporcao_preferidas
+BUSCA_HORAS = CONTEXTO.ritmo.busca_horas
+VALIDADE_HORAS = CONTEXTO.ritmo.validade_horas
 FAMILIAS_IMPORTADAS = tuple(nicho.ativo().familias_preferidas)
 
 # Re-promoção (blueprint §10): oferta JÁ ENVIADA cujo preço caiu de novo em
 # relação ao preço DA ÉPOCA DO ENVIO volta à fila como novidade. Comparar com
 # o preço enviado (não com a última coleta) evita ping-pong em oscilação.
 QUEDA_REPUBLICA_PCT = 15      # % de queda que justifica republicar. 0 desliga
-
-BANCO = os.environ.get("ML_BANCO", os.path.join(DADOS, "ofertas.db"))
 
 # Workspace padrão: existe uma conta só nesta fase, mas todas as entidades
 # novas já apontam para ela — abrir a plataforma depois é configuração, não
@@ -763,10 +806,10 @@ def aplicar_migracoes_comuns(con) -> None:
 
 
 def ler_estado(con: sqlite3.Connection, chave: str) -> str:
-    """Estado é POR PERFIL: dois grupos não podem dividir plano do dia,
+    """Estado é POR AUTOMAÇÃO: dois grupos não podem dividir plano do dia,
     contagem de envio nem histórico do clonador."""
     linha = con.execute(
-        "SELECT valor FROM estado WHERE chave = ?", (f"{PERFIL_ATIVO}:{chave}",)
+        "SELECT valor FROM estado WHERE chave = ?", (f"{CHAVE_EXECUCAO}:{chave}",)
     ).fetchone()
     return linha["valor"] if linha else ""
 
@@ -775,7 +818,7 @@ def gravar_estado(con: sqlite3.Connection, chave: str, valor: str) -> None:
     con.execute(
         "INSERT INTO estado (chave, valor) VALUES (?, ?) "
         "ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
-        (f"{PERFIL_ATIVO}:{chave}", valor),
+        (f"{CHAVE_EXECUCAO}:{chave}", valor),
     )
     con.commit()
 
@@ -1265,8 +1308,8 @@ def garantir_config(con) -> int:
         "canal": {"grupo": UAZAPI_GRUPO},
         "tracking": {"ativo": False, "base": ""},
         "clonador": {
-            "ativo": PERFIL.clone_ativo,
-            "grupos": list(PERFIL.clone_grupos),
+            "ativo": CONTEXTO.clone_ativo,
+            "grupos": list(CONTEXTO.clone_grupos),
             "intervalo_seg": 180,
             "janela_min": 90,
         },

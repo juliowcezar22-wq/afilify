@@ -14,14 +14,14 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 2 — Contexto explícito no motor (Fases 1 e 3 fechadas)
+**Fase atual**: 4 — Projetos e Automações (Fases 1, 2 e 3 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
 | Fase | Tarefas | Concluídas |
 |---|---|---|
 | 1 — Fundação bloqueante | T001–T007 | ✓ 7 de 7 |
-| 2 — Contexto explícito no motor | T008–T012 | 0 |
+| 2 — Contexto explícito no motor | T008–T012 | ✓ 5 de 5 |
 | 3 — Conexão WhatsApp (US1) | T013–T023 | ✓ 11 de 11 |
 | 4 — Projetos e Automações (US3) | T024–T030 | 0 |
 | 5 — Fonte configurável (US4) | T031–T041 | 0 |
@@ -138,6 +138,36 @@ serve como grupo de validação sem criar nada novo (D33).
   guarda que outros testes usam para recusar banco real. Corrigido e fechado.
 
 **Fases 1 e 3 fechadas com verificação completa.**
+
+
+### Fase 2 — contexto explícito no motor (2026-08-27)
+
+O risco central do plano, pago. `nucleo/comum.py` resolvia o projeto no import,
+congelando dezenas de constantes de módulo — era por isso que criar um projeto exigia escrever
+arquivo e reiniciar, e por isso que `runner.py` documentava a refatoração como "risco alto".
+
+**A saída não foi reescrever, foi trocar a fonte.** As constantes continuam existindo (os
+módulos as importam com `import *`, e trocá-las por chamadas quebraria tudo), mas agora
+**derivam** de um objeto `Contexto` resolvido uma vez no início do processo. O contexto vem de
+uma de duas fontes, e o motor é indiferente a qual:
+
+    AUTOMACAO_ID=…   automação criada na interface, lida do banco
+    PERFIL=…         arquivo perfis/*.py — a operação de sempre
+
+- **T008** `nucleo/contexto.py` — projeto, automação, ritmo, destinos, monitoramento e
+  curadoria num objeto só, com os dois construtores.
+- **T009** as constantes derivam do contexto. Banco indisponível cai no arquivo: projeto novo
+  indisponível é ruim, a operação viva parar é pior.
+- **T010** trava e plano do dia passaram a ser por **automação**, não por projeto — senão a
+  segunda automação de um projeto roubaria a cota da primeira e as duas disputariam a mesma
+  trava. Ofertas continuam pertencendo ao projeto.
+- **T011** `runner.py` supervisiona automações vindas do banco e perfis de arquivo do mesmo
+  jeito. Ligar um projeto na tela sobe o processo dele no próximo ciclo.
+- **T012** comparação constante a constante contra os dois arquivos de perfil: **idêntico**.
+  Cota, janelas, dispersão, proporção, coletas, validade, destino e nicho — nada mudou.
+
+169 testes passando (148 + 21 novos), incluindo três que sobem processo de verdade para provar
+os dois modos de resolução.
 
 ### 2026-08-26
 

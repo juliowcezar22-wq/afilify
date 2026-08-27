@@ -41,15 +41,15 @@ rodada · P2 completa a experiência · P3 pode esperar sem prejudicar o uso.
 
 **Bloqueia US3, US4, US5, US6. Vem cedo para o risco ser pago cedo.**
 
-- [ ] T008 `nucleo/contexto.py`: carregar workspace, projeto, automação, conexões, fonte,
+- [x] T008 `nucleo/contexto.py`: carregar workspace, projeto, automação, conexões, fonte,
       ritmo e mensagem a partir do banco, em um objeto explícito (R1)
-- [ ] T009 Refatorar `nucleo/comum.py`: substituir constantes de módulo derivadas do perfil por
+- [x] T009 Refatorar `nucleo/comum.py`: substituir constantes de módulo derivadas do perfil por
       parâmetros de contexto — **sem nenhuma mudança de regra de publicação** (R1)
-- [ ] T010 Refatorar `mercadolivre/agente.py` e `mercadolivre/buscador.py` para receber contexto
+- [x] T010 Refatorar `mercadolivre/agente.py` e `mercadolivre/buscador.py` para receber contexto
       (`mercadolivre/clonador.py` permanece intocado)
-- [ ] T011 `runner.py` passa a supervisionar por Automação ativa lida do banco, mantendo o
+- [x] T011 `runner.py` passa a supervisionar por Automação ativa lida do banco, mantendo o
       isolamento por processo e a trava por automação
-- [ ] T012 Rodar a suíte inteira e comparar comportamento antes/depois: mesma mensagem, mesmo
+- [x] T012 Rodar a suíte inteira e comparar comportamento antes/depois: mesma mensagem, mesmo
       ritmo, mesma seleção de fila. Divergência = a refatoração está errada
 
 **Checkpoint**: o motor roda a operação atual lendo do banco, com comportamento idêntico.
