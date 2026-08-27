@@ -185,12 +185,12 @@ o coletado corresponde à amostra.
 
 ## Fase 9 — Fechamento (P1, contínuo)
 
-- [ ] T061 Auditoria de vocabulário em todas as telas do fluxo comum (SC-003) — gate a cada tarefa
-- [ ] T062 Estados de carregamento, vazio e erro em todas as telas (FR-054, SC-009)
-- [ ] T063 QA de browser, console e network em todas as rotas, larguras reais incluídas
-- [ ] T064 Regressão completa: suíte Python, lint, typegen, tsc, build
-- [ ] T065 Validação com disparos reais no grupo de teste, registrada em `VALIDATION.md` (D33)
-- [ ] T066 Documentação: README e docs de produto atualizados
+- [x] T061 Auditoria de vocabulário em todas as telas do fluxo comum (SC-003) — gate a cada tarefa
+- [x] T062 Estados de carregamento, vazio e erro em todas as telas (FR-054, SC-009)
+- [x] T063 QA de browser, console e network em todas as rotas, larguras reais incluídas
+- [x] T064 Regressão completa: suíte Python, lint, typegen, tsc, build
+- [x] T065 Validação com disparos reais no grupo de teste, registrada em `VALIDATION.md` (D33)
+- [x] T066 Documentação: README e docs de produto atualizados
 - [ ] T067 Relatório final e checklist de revisão para o QA humano
 
 ---

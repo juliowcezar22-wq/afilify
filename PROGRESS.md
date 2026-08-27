@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 9 — Fechamento (Fases 1–8 fechadas)
+**Fase atual**: 9 — Fechamento (última tarefa: relatório)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -28,7 +28,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 | 6 — Publicações e destinos (US5) | T042–T049 | ✓ 8 de 8 |
 | 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | ✓ 6 de 6 |
 | 8 — Mensagens, desempenho, área técnica | T056–T060 | ✓ 5 de 5 |
-| 9 — Fechamento | T061–T067 | 0 |
+| 9 — Fechamento | T061–T067 | 6 de 7 |
 
 ---
 
@@ -139,6 +139,22 @@ serve como grupo de validação sem criar nada novo (D33).
 
 **Fases 1 e 3 fechadas com verificação completa.**
 
+
+### Fase 9 — fechamento (2026-08-27)
+
+- **Vocabulário** auditado em 12 rotas servidas: nada de fornecedor, identificador de grupo,
+  estado interno ou slug técnico.
+- **Estados**: com banco vazio, toda tela explica o que falta. Com banco ausente, degradam com
+  aviso em vez de quebrar.
+- **QA de navegador** (`scripts/harness/qa-browser.mjs`): Chrome real por CDP, 12 rotas ×
+  1440/768/390px — console limpo, rede sem erro, nenhuma rola de lado. Entrou no verificador,
+  rodando quando há painel de pé.
+- **Disparo real no grupo de teste**: critérios da Fonte → coleta no Mercado Livre (Al Wataniah,
+  −48%, R$ 118,15) → link de afiliado com a tag do workspace → publicado no grupo **Teste**.
+  A cadeia inteira, com dado real, do jeito que funcionaria em produção.
+- **Regressão completa**: lint, typecheck, 226 testes do motor, 23 do painel, build, linguagem,
+  anti-mock, congelados e QA de navegador — tudo passando.
+- **README** reescrito para a plataforma que existe agora.
 
 ### Fase 8 — mensagens, desempenho e área técnica (2026-08-27)
 

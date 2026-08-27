@@ -14,12 +14,13 @@ instância de produção, nunca no grupo real (D33).
 | Gate | Comando | Última execução | Resultado |
 |---|---|---|---|
 | lint + typecheck + testes do painel | `scripts/harness/fast-check.sh` | 2026-08-27 | ✓ 8 testes |
-| build | incluso em `verify-nucleo.sh` | 2026-08-27 | ✓ 6 rotas de conexão publicadas |
+| build | incluso em `verify-nucleo.sh` | 2026-08-27 | ✓ |
+| QA de navegador | `scripts/harness/qa-browser.mjs` | 2026-08-27 | ✓ 12 rotas × 3 larguras |
 | linguagem de produto | `scripts/harness/check-linguagem.sh` | 2026-08-27 | ✓ |
 | anti-mock | `scripts/harness/check-mock.sh` | 2026-08-27 | ✓ (e falha comprovada) |
 | congelados | `scripts/harness/guarda-congelados.sh` | 2026-08-27 | ✓ (e falha comprovada) |
 | banco de validação | `scripts/harness/guarda-banco.sh` | 2026-08-27 | ✓ (e bloqueio comprovado) |
-| testes do motor | `python3 -m unittest discover -s tests -t .` | 2026-08-27 | ✓ 111 testes |
+| testes do motor | `python3 -m unittest discover -s tests -t .` | 2026-08-27 | ✓ 226 testes |
 
 ## Validação com dado real
 
@@ -36,6 +37,10 @@ instância de produção, nunca no grupo real (D33).
 | 9 | Sincronizar grupos sem conexão explica o que fazer | "Conecte esta conta antes de sincronizar os grupos." | 2026-08-27 | ✓ |
 | 10 | Remover conexão adotada NÃO destrói a conta do usuário | Conexão criada adotando `Pessoal`, removida; instância continua na conta | 2026-08-27 | ✓ (após correção) |
 | 11 | Usuário escaneia o QR e a conta conecta | Feito pelo dono em 27/08: instância `Teste` criada pela Afilify e pareada; aparece no painel do provedor como `connected`, perfil "Júlio César - B2C" | 2026-08-27 | ✓ |
+| 33 | Vocabulário limpo em 12 rotas | `/`, `/ofertas`, `/publicacoes`, `/projetos`, `/fontes`, `/destinos`, `/mensagens`, `/ritmo`, `/conexoes`, `/desempenho`, `/configuracoes`, `/ajuda` — nenhum termo interno | 2026-08-27 | ✓ |
+| 34 | Telas explicam em vez de quebrar | Banco vazio: todas com estado vazio próprio. Banco ausente: as três testadas degradam com aviso, HTTP 200 | 2026-08-27 | ✓ |
+| 35 | QA de navegador em 3 larguras | Chrome real, 12 rotas × 1440/768/390px: console limpo, rede sem erro, nenhuma rota rola de lado | 2026-08-27 | ✓ |
+| 36 | **Cadeia completa com disparo real** | Critérios da Fonte → coleta no ML (Al Wataniah, −48%, R$118,15) → link `meli.la/1ybHkq7` com a tag do workspace → publicado no grupo **Teste** | 2026-08-27 | ✓ |
 | 31 | Área técnica separada do fluxo comum | `/tecnico` mostra limites, contas, pedidos e coletas; não aparece na navegação | 2026-08-27 | ✓ |
 | 32 | Vocabulário limpo nas rotas servidas | `/`, `/ofertas`, `/publicacoes`, `/projetos`, `/conexoes`, `/fontes` — nenhum termo interno no HTML | 2026-08-27 | ✓ |
 | 28 | Ritmo valida na borda | Janela invertida, horário vazio e mínimo > máximo recusados com frase; ritmo válido gravado em decimal (08:45 → 8.75) | 2026-08-27 | ✓ |

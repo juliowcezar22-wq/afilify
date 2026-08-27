@@ -54,7 +54,22 @@ else
   echo "✓ testes do motor ok ($(grep -oE 'Ran [0-9]+ tests' /tmp/afilify-py.log | tail -1))"
 fi
 
-# 7. tarefas abertas (grep -c sai 1 sem match — capturar só o stdout)
+# 7. QA de navegador — console, rede e layout nas rotas do fluxo comum.
+# Só roda quando há painel de pé: subir um aqui tornaria o gate lento demais
+# para o uso normal.
+if curl -s -m 3 -o /dev/null "${QA_BASE:-http://localhost:3105}/api/health" 2>/dev/null; then
+  echo "→ QA de navegador"
+  if ! node "$RAIZ/scripts/harness/qa-browser.mjs" "${QA_BASE:-http://localhost:3105}" "${QA_COOKIE:-}" >/tmp/afilify-qa.log 2>&1; then
+    echo "✗ QA de navegador falhou:"; tail -20 /tmp/afilify-qa.log
+    FALHAS+=("qa-navegador")
+  else
+    echo "✓ QA de navegador ok"
+  fi
+else
+  echo "· QA de navegador pulado (nenhum painel respondendo em ${QA_BASE:-http://localhost:3105})"
+fi
+
+# 8. tarefas abertas (grep -c sai 1 sem match — capturar só o stdout)
 ABERTAS=$(grep -c '^- \[ \] T' "$TAREFAS" 2>/dev/null || true)
 ABERTAS=${ABERTAS:-0}
 echo "· tarefas abertas: $ABERTAS"
