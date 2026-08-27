@@ -47,6 +47,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from nucleo.comum import *  # noqa: F401,F403
+from nucleo import comandos, teste_busca
 from mercadolivre.config import *  # noqa: F401,F403
 from nucleo.comum import AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO
 from mercadolivre.buscador import (
@@ -579,11 +580,25 @@ def cmd_rodar(args) -> int:
 
     while not _parar:
         momento = agora()
-        # pulso de vida: o dashboard mostra "Worker ● Online" lendo isto
+        # pulso de vida: o painel mostra a automação como ativa lendo isto
         gravar_estado(con, "heartbeat", momento.isoformat(timespec="seconds"))
         try:
+            # Pedidos do painel primeiro: tem gente esperando na tela, e a
+            # janela de validade deles é curta.
+            atendidos = comandos.atender(con, EXECUTORES)
+            if atendidos:
+                info(f"{atendidos} pedido(s) do painel atendido(s)")
+
             if hora_de_buscar(con, momento):
                 gravar_estado(con, "ultima_busca", momento.isoformat(timespec="seconds"))
+                # A fonte configurada na tela manda no que procurar.
+                if CONTEXTO.criterios_busca:
+                    from mercadolivre import buscador as _b
+                    from nucleo import fonte_busca as _fb
+                    try:
+                        _b.usar_criterios(_fb.normalizar(CONTEXTO.criterios_busca))
+                    except _fb.CriteriosInvalidos as e:
+                        aviso(f"fonte com configuração inválida ({e}) — usando o padrão do nicho")
                 n = purgar_vencidas(con)
                 con.commit()
                 if n:
@@ -1139,6 +1154,14 @@ def cmd_limpar(args) -> int:
         f"{vencidas} pendente(s) vencida(s) (+{VALIDADE_HORAS}h) · restam {restam}"
     )
     return 0
+
+
+# O que o painel pode pedir ao motor. Cada entrada é um pedido que existe
+# porque a tela não consegue fazer sozinha — não um atalho para chamar
+# qualquer coisa daqui de dentro.
+EXECUTORES = {
+    "testar_busca": lambda con, params: teste_busca.executar(con, params),
+}
 
 
 def main() -> int:

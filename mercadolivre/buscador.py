@@ -509,7 +509,21 @@ def _categoria() -> str:
     return nicho.ativo().config("mercadolivre").get("categoria", "")
 
 
+# Critérios da Fonte em vigor nesta execução. Vazio = comportamento de
+# sempre (termos do nicho). Preenchido = o usuário configurou a fonte na
+# tela, e é ela quem manda.
+CRITERIOS_DA_FONTE: dict = {}
+
+
+def usar_criterios(criterios: dict) -> None:
+    """Passa a coletar segundo o que o usuário pediu na tela."""
+    global CRITERIOS_DA_FONTE
+    CRITERIOS_DA_FONTE = criterios or {}
+
+
 def _termos() -> list:
+    if CRITERIOS_DA_FONTE.get("palavras_chave"):
+        return list(CRITERIOS_DA_FONTE["palavras_chave"])
     return nicho.ativo().config("mercadolivre").get("termos", [])
 
 
@@ -593,8 +607,40 @@ def payload_da_busca(pagina_html: str) -> str:
     return ""
 
 
+# Sinais de que o Mercado Livre respondeu com bloqueio em vez de resultado.
+# Sem isto, a página de captcha vira "0 ofertas encontradas" — e o usuário
+# passa horas mexendo nos critérios para consertar algo que não é dele.
+SINAIS_DE_BLOQUEIO = (
+    "abuse-captcha",
+    "captcha/wall",
+    "abuse-china-wall",
+    "gz-account-verification",
+)
+
+
+class BuscaBloqueada(RuntimeError):
+    """O Mercado Livre recusou a consulta (verificação anti-robô).
+
+    Erro próprio porque a saída é diferente de qualquer outra falha: não
+    adianta mexer nos critérios nem tentar de novo já — é preciso esperar,
+    e às vezes renovar a sessão.
+    """
+
+    mensagem_usuario = (
+        "O Mercado Livre bloqueou a busca temporariamente. "
+        "Isso costuma passar sozinho em alguns minutos.")
+
+
+def foi_bloqueada(pagina_html: str) -> bool:
+    baixo = pagina_html[:20000].lower()
+    return any(sinal in baixo for sinal in SINAIS_DE_BLOQUEIO)
+
+
 def contexto_da_busca(pagina_html: str) -> dict | None:
     """Devolve os cards no mesmo formato que extrair_ofertas_json() espera."""
+    if foi_bloqueada(pagina_html):
+        raise BuscaBloqueada("resposta é a página de verificação do Mercado Livre")
+
     bruto = payload_da_busca(pagina_html)
     if not bruto:
         return None
@@ -694,12 +740,28 @@ def foto_para_envio(linha: sqlite3.Row) -> str:
 
 
 
+def _passa_nos_criterios(oferta) -> tuple:
+    """Filtro do USUÁRIO (desconto, faixa de preço, exclusões).
+
+    Roda depois da curadoria do nicho, que já derrubou o que não é oferta
+    boa. São barreiras independentes de propósito: uma protege o grupo de
+    produto ruim, a outra atende ao que este usuário quer ver.
+    """
+    if not CRITERIOS_DA_FONTE:
+        return True, ""
+    from nucleo import fonte_busca
+    return fonte_busca.aceita(oferta, CRITERIOS_DA_FONTE)
+
+
 def registrar(
     con: sqlite3.Connection, ofertas: list[Oferta], seco: bool
 ) -> tuple[int, int]:
     """Grava (ou só mostra) as ofertas. Devolve (novas, já conhecidas)."""
     novas = conhecidas = 0
     for o in ofertas:
+        passa, _motivo = _passa_nos_criterios(o)
+        if not passa:
+            continue
         if seco:
             print(
                 f"  {VERDE}{o.desconto_pct:>3}%{FIM} {o.nome[:66]}\n"

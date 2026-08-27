@@ -116,24 +116,24 @@ pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
 **Teste independente**: configurar busca para um nicho diferente, testar, ativar e confirmar que
 o coletado corresponde à amostra.
 
-- [ ] T031 [US4] Fila de comandos: consumidor no motor (`nucleo/comandos.py`) e leitura de
+- [x] T031 [US4] Fila de comandos: consumidor no motor (`nucleo/comandos.py`) e leitura de
       resultado no painel, com expiração e estado "o motor não está rodando" (R3)
-- [ ] T032 [US4] `buscador.py` passa a receber os critérios da Fonte; paginação, pausas,
+- [x] T032 [US4] `buscador.py` passa a receber os critérios da Fonte; paginação, pausas,
       categoria e tentativas continuam internos (R7, FR-031)
-- [ ] T033 [P] [US4] Rotas de fonte, com rejeição de campo desconhecido em `criterios` —
+- [x] T033 [P] [US4] Rotas de fonte, com rejeição de campo desconhecido em `criterios` —
       a proibição vale no contrato, não só na interface (FR-030)
-- [ ] T034 [US4] Tela da Fonte: palavras-chave, onde buscar, desconto mínimo, faixa de preço,
+- [x] T034 [US4] Tela da Fonte: palavras-chave, onde buscar, desconto mínimo, faixa de preço,
       exclusões em Avançado recolhido (D28)
-- [ ] T035 [US4] Comando `testar_busca` pelo mesmo caminho de código da coleta real, com
+- [x] T035 [US4] Comando `testar_busca` pelo mesmo caminho de código da coleta real, com
       limite de amostra (R8, FR-032, FR-033)
-- [ ] T036 [US4] Resultado do teste: contagem, amostra com nome/preço/desconto, e explicação
+- [x] T036 [US4] Resultado do teste: contagem, amostra com nome/preço/desconto, e explicação
       do que restringiu demais quando volta vazio (US4 cenário 3)
-- [ ] T037 [US4] Sinais automáticos do anúncio como segunda barreira de qualidade (FR-038b)
-- [ ] T038 [US4] `execucao_fonte`: registro de cada coleta com resultado legível, incluindo
+- [x] T037 [US4] Sinais automáticos do anúncio como segunda barreira de qualidade (FR-038b)
+- [x] T038 [US4] `execucao_fonte`: registro de cada coleta com resultado legível, incluindo
       bloqueio da plataforma (FR-035, US4 cenário 5)
-- [ ] T039 [US4] Deduplicação por identificador e título normalizado, dentro do projeto (FR-034)
-- [ ] T040 [US4] Agenda de coleta em linguagem de intenção (FR-036) e limite de uso (FR-037)
-- [ ] T041 [P] [US4] Testes: critérios respeitados, amostra igual à coleta, dedup, coleta vazia,
+- [x] T039 [US4] Deduplicação por identificador e título normalizado, dentro do projeto (FR-034)
+- [x] T040 [US4] Agenda de coleta em linguagem de intenção (FR-036) e limite de uso (FR-037)
+- [x] T041 [P] [US4] Testes: critérios respeitados, amostra igual à coleta, dedup, coleta vazia,
       bloqueio da origem
 
 **Checkpoint**: um nicho novo é configurado, testado e ativado sem uma linha de código.

@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 5 — Fonte configurável (Fases 1–4 fechadas)
+**Fase atual**: 6 — Publicações e destinos (Fases 1–5 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -24,7 +24,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 | 2 — Contexto explícito no motor | T008–T012 | ✓ 5 de 5 |
 | 3 — Conexão WhatsApp (US1) | T013–T023 | ✓ 11 de 11 |
 | 4 — Projetos e Automações (US3) | T024–T030 | ✓ 7 de 7 |
-| 5 — Fonte configurável (US4) | T031–T041 | 0 |
+| 5 — Fonte configurável (US4) | T031–T041 | ✓ 11 de 11 |
 | 6 — Publicações e destinos (US5) | T042–T049 | 0 |
 | 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | 0 |
 | 8 — Mensagens, desempenho, área técnica | T056–T060 | 0 |
@@ -139,6 +139,44 @@ serve como grupo de validação sem criar nada novo (D33).
 
 **Fases 1 e 3 fechadas com verificação completa.**
 
+
+### Fase 5 — fonte configurável e teste de busca (2026-08-27)
+
+A promessa central do brief: um nicho novo passa a ser configuração, não commit.
+
+**Quatro campos, e só**: palavras-chave, onde buscar, desconto mínimo, faixa de preço.
+Exclusões em Avançado. A recusa de parâmetro técnico vale **no contrato** — mandar
+`concurrency` ou `timeout` direto pela API devolve "Esta fonte recebeu uma configuração que a
+Afilify não reconhece", não um campo escondido na tela.
+
+**O canal painel → motor** (`comandos`): em produção os dois são contêineres separados que só
+compartilham o banco. O painel deixa o pedido, o motor pega, executa e devolve. Pedido velho
+não é executado — expira e a tela diz "a automação não está rodando agora", em vez de girar
+para sempre.
+
+**Testar busca com dado real**, medido nesta sessão contra o Mercado Livre:
+
+| Critérios | Compatíveis |
+|---|---|
+| sem filtro | 16 |
+| desconto ≥ 30% | 12 |
+| ≥ 30% e até R$ 200 | 6 |
+| desconto ≥ 80% | 0 — "provavelmente o desconto mínimo de 80% está restringindo demais" |
+
+**Descoberta importante**: o Mercado Livre está **bloqueando a busca logada** agora (devolve a
+página de captcha `/captcha/wall/logged` em vez dos resultados). A vitrine `/ofertas`, que não
+exige sessão, continua respondendo normalmente. Isso virou tratamento de primeira classe: o
+bloqueio tem erro próprio e mensagem própria, e **não** é confundido com "critérios apertados
+demais" — senão o usuário passaria horas mexendo em filtros para consertar algo que não é dele.
+
+**Dois defeitos meus, encontrados pelo teste real**: chamei `extrair_ofertas_json` com um
+argumento a menos, e um `except Exception: pass` engoliu o erro — a função devolvia zero em
+silêncio. Removido o `pass`; o erro apareceu na hora seguinte e foi corrigido.
+
+A agenda da fonte manda no motor: horários configurados na tela são os horários em que a coleta
+acontece. Sem isso, o usuário mexeria numa configuração que parece funcionar e não funciona.
+
+200 testes passando.
 
 ### Fase 4 — projetos e automações (2026-08-27)
 

@@ -74,6 +74,12 @@ class Contexto:
     clone_ativo: bool = False
     clone_grupos: list = field(default_factory=list)
 
+    # A fonte de busca em vigor: o que procurar, e qual registro de coleta
+    # atualizar quando a busca rodar. Vazio no modo antigo — lá os termos
+    # vêm do arquivo do nicho.
+    fonte_busca_id: str = ""
+    criterios_busca: dict = field(default_factory=dict)
+
     # De onde este contexto veio — o motor não muda de comportamento por
     # causa disso, mas o diagnóstico fica honesto.
     origem: str = "perfil"
@@ -160,6 +166,27 @@ class Contexto:
                 clone_grupos.extend(str(g) for g in grupos)
             clone_ativo = clone_ativo or bool(f["ativa"])
 
+        # A fonte de busca traz o que procurar E quando procurar. Sem isto, o
+        # usuário configuraria horários na tela da fonte e o motor coletaria
+        # em outros — uma configuração que parece funcionar e não funciona.
+        fonte_busca_id, criterios_busca = "", {}
+        for f in con.execute(
+            "SELECT id, ativa, criterios, agenda FROM fontes "
+            "WHERE automacao_id = ? AND tipo = 'busca' AND ativa = 1 LIMIT 1",
+            (automacao_id,)):
+            fonte_busca_id = f["id"]
+            try:
+                criterios_busca = json.loads(f["criterios"] or "{}")
+            except (ValueError, TypeError):
+                criterios_busca = {}
+            try:
+                agenda = json.loads(f["agenda"] or "{}")
+            except (ValueError, TypeError):
+                agenda = {}
+            horarios = agenda.get("horarios")
+            if isinstance(horarios, list) and horarios:
+                ritmo.busca_horas = [int(h) for h in horarios if isinstance(h, (int, float))]
+
         return cls(
             workspace_id=linha["workspace_id"],
             projeto_id=linha["projeto_id"],
@@ -172,6 +199,8 @@ class Contexto:
             destinos=destinos,
             clone_ativo=clone_ativo,
             clone_grupos=clone_grupos,
+            fonte_busca_id=fonte_busca_id,
+            criterios_busca=criterios_busca,
             origem="banco",
         )
 

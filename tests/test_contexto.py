@@ -251,3 +251,69 @@ class ResolucaoNoProcesso(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FonteDaAutomacao(unittest.TestCase):
+    """A fonte configurada na tela manda no que e quando procurar.
+
+    Sem isto, o usuário mexeria nos horários da fonte e o motor coletaria em
+    outros — configuração que parece funcionar e não funciona.
+    """
+
+    def setUp(self):
+        from nucleo import comum
+        comum.BANCO = os.path.join(tempfile.mkdtemp(prefix="afilify-test-"), "f.db")
+        self.con = comum.abrir_banco()
+        self.projeto, self.automacao = str(uuid.uuid4()), str(uuid.uuid4())
+        self.con.execute(
+            "INSERT INTO projetos (id, workspace_id, nome, tipo_nicho_id, estado, criado_em, atualizado_em) "
+            "VALUES (?, 'ws-afilify', 'P', 'perfumes', 'ativo', ?, ?)",
+            (self.projeto, AGORA, AGORA))
+        self.con.execute(
+            "INSERT INTO automacoes (id, workspace_id, projeto_id, nome, estado, ritmo, criado_em, atualizado_em) "
+            "VALUES (?, 'ws-afilify', ?, 'A', 'ativa', '{}', ?, ?)",
+            (self.automacao, self.projeto, AGORA, AGORA))
+        self.con.commit()
+
+    def tearDown(self):
+        self.con.close()
+
+    def _fonte(self, ativa=1, horarios=None, criterios=None):
+        self.con.execute(
+            "INSERT INTO fontes (id, workspace_id, automacao_id, tipo, ativa, criterios, agenda, "
+            "criado_em, atualizado_em) VALUES (?, 'ws-afilify', ?, 'busca', ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), self.automacao, ativa,
+             json.dumps(criterios or {"palavras_chave": ["perfume árabe"]}),
+             json.dumps({"horarios": horarios} if horarios else {}), AGORA, AGORA))
+        self.con.commit()
+
+    def test_criterios_da_fonte_chegam_ao_contexto(self):
+        self._fonte(criterios={"palavras_chave": ["perfume árabe", "perfume importado"]})
+        c = contexto.Contexto.do_banco(self.con, self.automacao)
+        self.assertEqual(c.criterios_busca["palavras_chave"], ["perfume árabe", "perfume importado"])
+        self.assertTrue(c.fonte_busca_id)
+
+    def test_horarios_da_fonte_vencem_o_padrao(self):
+        self._fonte(horarios=[6, 12, 18, 22])
+        c = contexto.Contexto.do_banco(self.con, self.automacao)
+        self.assertEqual(c.ritmo.busca_horas, [6, 12, 18, 22])
+
+    def test_fonte_desligada_nao_manda_no_ritmo(self):
+        self._fonte(ativa=0, horarios=[3])
+        c = contexto.Contexto.do_banco(self.con, self.automacao)
+        self.assertNotEqual(c.ritmo.busca_horas, [3])
+        self.assertEqual(c.criterios_busca, {})
+
+    def test_sem_fonte_o_nicho_continua_mandando(self):
+        c = contexto.Contexto.do_banco(self.con, self.automacao)
+        self.assertEqual(c.criterios_busca, {})
+        self.assertEqual(c.fonte_busca_id, "")
+
+    def test_agenda_corrompida_nao_derruba(self):
+        self.con.execute("INSERT INTO fontes (id, workspace_id, automacao_id, tipo, ativa, "
+                         "criterios, agenda, criado_em, atualizado_em) "
+                         "VALUES (?, 'ws-afilify', ?, 'busca', 1, '{}', 'não é json', ?, ?)",
+                         (str(uuid.uuid4()), self.automacao, AGORA, AGORA))
+        self.con.commit()
+        c = contexto.Contexto.do_banco(self.con, self.automacao)
+        self.assertEqual(c.ritmo.busca_horas, contexto.Ritmo().busca_horas)

@@ -35,24 +35,44 @@ PY
 case "${1:-ciclo}" in
   proxima) proxima_tarefa ;;
   ciclo)
+    ABERTAS=$(grep -c '^- \[ \] T' "$TAREFAS" 2>/dev/null || true)
+    echo "════ ciclo · $ABERTAS tarefa(s) abertas no total ════"
+
+    # Fecha TODA fase completa ainda não registrada — não só a corrente.
+    # Marcar as tarefas já move a "fase atual" adiante, então olhar apenas
+    # para ela deixaria a recém-concluída sem verificação nenhuma.
+    REGISTRO="$RAIZ/.harness/fases-fechadas"
+    COMPLETAS=$(python3 - "$TAREFAS" <<'PY'
+import re, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+fase = None; fases = {}
+for linha in s.splitlines():
+    m = re.match(r"^## Fase (\d+) — ", linha)
+    if m: fase = m.group(1); fases[fase] = [0, 0]
+    if fase and re.match(r"^- \[[ x]\] ", linha):
+        fases[fase][0 if linha.startswith("- [x]") else 1] += 1
+print(" ".join(n for n, (feito, falta) in fases.items() if feito and not falta))
+PY
+)
+    for N in $COMPLETAS; do
+      if grep -q "^Fase $N fechada" "$REGISTRO" 2>/dev/null; then continue; fi
+      echo "→ Fase $N completa e ainda não verificada"
+      if "$RAIZ/scripts/harness/fase.sh" fechar "$N" >/dev/null 2>&1; then
+        echo "✓ Fase $N fechada"
+      else
+        echo "✗ Fase $N NÃO fecha — a verificação completa falhou"
+        "$RAIZ/scripts/harness/verify-nucleo.sh" 2>&1 | tail -12
+        exit 1
+      fi
+    done
+
     FASE=$("$RAIZ/scripts/harness/fase.sh" atual)
     if [ -z "$FASE" ]; then
       echo "════ todas as fases concluídas ════"
-      "$RAIZ/scripts/harness/verify-nucleo.sh"
-      exit $?
+      exit 0
     fi
-    N=$(echo "$FASE" | grep -oE '[0-9]+')
-    ABERTAS=$(grep -c '^- \[ \] T' "$TAREFAS" 2>/dev/null || true)
-    echo "════ ciclo · $FASE · $ABERTAS tarefa(s) abertas no total ════"
-    if "$RAIZ/scripts/harness/fase.sh" fechar "$N" >/dev/null 2>&1; then
-      echo "✓ $FASE fechada — avançando"
-      echo
-      proxima_tarefa
-    else
-      echo "· $FASE ainda aberta"
-      echo
-      proxima_tarefa
-    fi
+    echo
+    proxima_tarefa
     ;;
   *) echo "uso: ciclo.sh [ciclo|proxima]"; exit 1 ;;
 esac

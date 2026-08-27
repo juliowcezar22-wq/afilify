@@ -36,6 +36,10 @@ instância de produção, nunca no grupo real (D33).
 | 9 | Sincronizar grupos sem conexão explica o que fazer | "Conecte esta conta antes de sincronizar os grupos." | 2026-08-27 | ✓ |
 | 10 | Remover conexão adotada NÃO destrói a conta do usuário | Conexão criada adotando `Pessoal`, removida; instância continua na conta | 2026-08-27 | ✓ (após correção) |
 | 11 | Usuário escaneia o QR e a conta conecta | Feito pelo dono em 27/08: instância `Teste` criada pela Afilify e pareada; aparece no painel do provedor como `connected`, perfil "Júlio César - B2C" | 2026-08-27 | ✓ |
+| 22 | Testar busca traz ofertas reais e os critérios filtram | Página de ofertas do ML: 16 sem filtro → 12 com ≥30% → 6 com faixa até R$200 → 0 com ≥80% + explicação | 2026-08-27 | ✓ |
+| 23 | Parâmetro técnico é recusado no contrato | `concurrency`, `timeout`, `paginas`, `proxy`, `retries`, `delay` → "configuração que a Afilify não reconhece" | 2026-08-27 | ✓ |
+| 24 | Canal painel → motor funciona ponta a ponta | Pedido criado pela API (pendente) → motor atendeu → painel leu o resultado | 2026-08-27 | ✓ |
+| 25 | Bloqueio do ML não vira "critério apertado" | ML devolveu captcha; a tela lê "O Mercado Livre bloqueou a busca temporariamente" | 2026-08-27 | ✓ |
 | 18 | Projeto e automação criados pela tela, sem arquivo | Projeto "Perfumes" → automação → ligada; supervisor listou "Perfumes · Ofertas Mercado Livre" | 2026-08-27 | ✓ |
 | 19 | Automação não liga pela metade | Sem fonte/destino: 2 pendências; conexão caída: "conectar Principal — ela está desconectada" | 2026-08-27 | ✓ |
 | 20 | Duplicar copia a receita, não o histórico | Cópia pausada, 1 fonte e 1 destino, automação em rascunho, zero ofertas | 2026-08-27 | ✓ (após correção do estado devolvido) |

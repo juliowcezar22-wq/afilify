@@ -16,6 +16,9 @@ import { Cartao } from "@/components/ui/cartao";
 import { Selo } from "@/components/ui/selo";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
 import { FormMonitoramento } from "./form";
+import { EditorBusca } from "./editor-busca";
+import * as fontes from "@/lib/fontes";
+import { listarAutomacoes, listarProjetos } from "@/lib/projetos-repo";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +26,26 @@ export const dynamic = "force-dynamic";
 export default async function Fontes() {
   const ctx = await contextoProjeto();
   const proj = condicaoProjeto(ctx);
+
+  // Fontes de busca configuráveis, das automações do projeto ativo. O bloco
+  // legado (abaixo) continua servindo os projetos que ainda vêm de arquivo.
+  const fontesDeBusca = await (async () => {
+    try {
+      const projetos = await listarProjetos();
+      const saida: Array<{ id: string; projeto: string; automacao: string; fonte: fontes.Fonte }> = [];
+      for (const proj of projetos) {
+        for (const auto of await listarAutomacoes(proj.id)) {
+          for (const f of await fontes.listar(auto.id)) {
+            if (f.tipo === "busca")
+              saida.push({ id: f.id, projeto: proj.nome, automacao: auto.nome, fonte: f });
+          }
+        }
+      }
+      return saida;
+    } catch {
+      return [];
+    }
+  })();
 
   const [cfgClonador, cfgRitmo, grupos, oportunidades, batidas] = await Promise.all([
     todas(`SELECT perfil, valor FROM config WHERE chave='clonador'${proj.sql} ORDER BY perfil`, proj.params),
@@ -62,7 +85,21 @@ export default async function Fontes() {
         descricao="De onde as suas ofertas surgem: busca automática nas lojas e monitoramento de grupos."
       />
 
-      {/* Busca automática */}
+      {/* Fontes configuráveis: o usuário diz o que procurar e testa antes de ligar. */}
+      {fontesDeBusca.length > 0 && (
+        <div className="mt-6 grid grid-cols-1 gap-4">
+          {fontesDeBusca.map((f) => (
+            <div key={f.id}>
+              <p className="mb-2 text-xs uppercase tracking-wider text-tinta2">
+                {f.projeto} · {f.automacao}
+              </p>
+              <EditorBusca fonteId={f.id} inicial={f.fonte.criterios} ativa={f.fonte.ativa} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Busca automática dos projetos que ainda vêm de arquivo */}
       <Cartao className="mt-6" titulo="Busca automática">
         {cfgRitmo.length === 0 ? (
           <EstadoVazio
