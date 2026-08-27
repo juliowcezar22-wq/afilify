@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 8 — Mensagens, desempenho e área técnica (Fases 1–7 fechadas)
+**Fase atual**: 9 — Fechamento (Fases 1–8 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -27,7 +27,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 | 5 — Fonte configurável (US4) | T031–T041 | ✓ 11 de 11 |
 | 6 — Publicações e destinos (US5) | T042–T049 | ✓ 8 de 8 |
 | 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | ✓ 6 de 6 |
-| 8 — Mensagens, desempenho, área técnica | T056–T060 | 0 |
+| 8 — Mensagens, desempenho, área técnica | T056–T060 | ✓ 5 de 5 |
 | 9 — Fechamento | T061–T067 | 0 |
 
 ---
@@ -139,6 +139,25 @@ serve como grupo de validação sem criar nada novo (D33).
 
 **Fases 1 e 3 fechadas com verificação completa.**
 
+
+### Fase 8 — mensagens, desempenho e área técnica (2026-08-27)
+
+**Mensagens** com preview usando uma oferta real do próprio projeto — preview com produto
+inventado dá confiança falsa, e o texto que engana é justamente o que só quebra com dado de
+verdade. Template sem `{nome}`, `{link}` ou `{preco_promocional}` é recusado com a razão: sem
+eles a publicação sai quebrada no grupo.
+
+**Desempenho** por dia, hora e marca, separando busca de monitoramento. Não repete os números do
+Dashboard de propósito: dois lugares mostrando o mesmo número acabam divergindo, e aí nenhum
+merece confiança. Aproveitamento com zero encontradas devolve "sem dados", não "0%" — 0% sugere
+que a busca trabalhou e nada prestou.
+
+**Área técnica** (`/tecnico`), fora da navegação: limites e uso do dia, identificador das contas,
+últimos pedidos ao motor e últimas coletas. É o lugar de diagnosticar, não de operar.
+
+**Auditoria de vocabulário nas rotas servidas**: `/`, `/ofertas`, `/publicacoes`, `/projetos`,
+`/conexoes` e `/fontes` — nenhuma vaza fornecedor, identificador de grupo, estado interno ou
+slug técnico.
 
 ### Fase 7 — ritmo, conexão do Mercado Livre e contas (2026-08-27)
 

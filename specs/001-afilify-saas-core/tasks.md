@@ -174,12 +174,12 @@ o coletado corresponde à amostra.
 
 ## Fase 8 — Mensagens, desempenho e área técnica (P2)
 
-- [ ] T056 [P] Mensagens por automação, com preview usando oferta real do próprio projeto (FR-043)
-- [ ] T057 [P] Desempenho por projeto, sem duplicar o Dashboard
-- [ ] T058 [P] Área administrativa: registro técnico, identificadores, diagnóstico de conexão
+- [x] T056 [P] Mensagens por automação, com preview usando oferta real do próprio projeto (FR-043)
+- [x] T057 [P] Desempenho por projeto, sem duplicar o Dashboard
+- [x] T058 [P] Área administrativa: registro técnico, identificadores, diagnóstico de conexão
       (FR-052)
-- [ ] T059 [P] Eventos relevantes contextualizados na tela onde importam (FR-052)
-- [ ] T060 Limites de plano aplicados e comunicados (FR-037, FR-046, `limite_plano`)
+- [x] T059 [P] Eventos relevantes contextualizados na tela onde importam (FR-052)
+- [x] T060 Limites de plano aplicados e comunicados (FR-037, FR-046, `limite_plano`)
 
 ---
 

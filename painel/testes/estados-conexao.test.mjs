@@ -206,3 +206,35 @@ test("janela que fecha antes de abrir é recusada", () => {
   const fecha = horaParaDecimal("09:00");
   assert.ok(abre >= fecha, "esta combinação precisa ser rejeitada pela validação");
 });
+
+/* ── mensagens ──────────────────────────────────────────────────────── */
+
+const OBRIGATORIOS = ["{nome}", "{link}", "{preco_promocional}"];
+const CONHECIDOS = ["headline", "nome", "preco_original", "preco_promocional", "desconto", "linha_loja", "link"];
+
+function validarTemplate(base) {
+  for (const t of OBRIGATORIOS) if (!base.includes(t)) return `falta ${t}`;
+  const usados = [...base.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+  const invalido = usados.find((t) => !CONHECIDOS.includes(t));
+  return invalido ? `token desconhecido: ${invalido}` : "";
+}
+
+test("template sem token obrigatório é recusado", () => {
+  assert.match(validarTemplate("{nome} por {preco_promocional}"), /falta \{link\}/);
+});
+
+test("token que a Afilify não sabe preencher é recusado", () => {
+  assert.match(
+    validarTemplate("{nome} {preco_promocional} {link} {cupom}"),
+    /token desconhecido: cupom/,
+  );
+});
+
+test("template completo passa", () => {
+  assert.equal(validarTemplate("{headline}\n{nome}\nPor {preco_promocional}\n{link}"), "");
+});
+
+test("linhas vazias são colapsadas como o WhatsApp faria", () => {
+  const texto = "A\n\n\n\nB".replace(/\n{3,}/g, "\n\n");
+  assert.equal(texto, "A\n\nB");
+});

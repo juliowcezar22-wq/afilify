@@ -36,6 +36,8 @@ instância de produção, nunca no grupo real (D33).
 | 9 | Sincronizar grupos sem conexão explica o que fazer | "Conecte esta conta antes de sincronizar os grupos." | 2026-08-27 | ✓ |
 | 10 | Remover conexão adotada NÃO destrói a conta do usuário | Conexão criada adotando `Pessoal`, removida; instância continua na conta | 2026-08-27 | ✓ (após correção) |
 | 11 | Usuário escaneia o QR e a conta conecta | Feito pelo dono em 27/08: instância `Teste` criada pela Afilify e pareada; aparece no painel do provedor como `connected`, perfil "Júlio César - B2C" | 2026-08-27 | ✓ |
+| 31 | Área técnica separada do fluxo comum | `/tecnico` mostra limites, contas, pedidos e coletas; não aparece na navegação | 2026-08-27 | ✓ |
+| 32 | Vocabulário limpo nas rotas servidas | `/`, `/ofertas`, `/publicacoes`, `/projetos`, `/conexoes`, `/fontes` — nenhum termo interno no HTML | 2026-08-27 | ✓ |
 | 28 | Ritmo valida na borda | Janela invertida, horário vazio e mínimo > máximo recusados com frase; ritmo válido gravado em decimal (08:45 → 8.75) | 2026-08-27 | ✓ |
 | 29 | Conexão do Mercado Livre provada com link real | Link gerado (`meli.la/…`), tag `ceju…3443`, 19 dias restantes | 2026-08-27 | ✓ (após corrigir falso negativo) |
 | 30 | Login contra conta do banco | Senha certa 200 + cookie + último acesso; senha errada 401; email inexistente com a MESMA resposta | 2026-08-27 | ✓ |
