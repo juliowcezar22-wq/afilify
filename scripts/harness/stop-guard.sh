@@ -9,7 +9,7 @@ RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENTRADA=$(cat 2>/dev/null || true)   # JSON do hook (stop_hook_active etc.)
 
 # grep -c imprime 0 E sai com 1 quando não há match — capturar só o stdout
-ABERTAS=$(grep -c '^- \[ \]' "$RAIZ/TASKS_AFILIFY_REDESIGN.md" 2>/dev/null || true)
+ABERTAS=$(grep -c '^- \[ \] T' "$RAIZ/specs/001-afilify-saas-core/tasks.md" 2>/dev/null || true)
 ABERTAS=${ABERTAS:-0}
 
 # assinatura sensível a CONTEÚDO: HEAD + diff das rastreadas + hash das
@@ -46,13 +46,13 @@ mkdir -p "$RAIZ/.harness"
 echo "$((CONTA + 1))" > "$RAIZ/.harness/stop-blocks"
 
 {
-  echo "Trabalho do redesign ainda não concluído:"
+  echo "Trabalho do núcleo SaaS ainda não concluído:"
   if [ "$ABERTAS" -gt 0 ]; then
-    echo "· $ABERTAS task(s) abertas em TASKS_AFILIFY_REDESIGN.md:"
-    grep -n '^- \[ \]' "$RAIZ/TASKS_AFILIFY_REDESIGN.md" | head -8
+    echo "· $ABERTAS tarefa(s) abertas em specs/001-afilify-saas-core/tasks.md:"
+    grep -n '^- \[ \] T' "$RAIZ/specs/001-afilify-saas-core/tasks.md" | head -8
   fi
   if [ "$MARCADOR" != "$ASSINATURA" ]; then
-    echo "· verificação completa não corresponde ao estado atual — rode scripts/harness/verify-redesign.sh"
+    echo "· verificação completa não corresponde ao estado atual — rode scripts/harness/verify-nucleo.sh"
   fi
   echo "Continue o ciclo: implementar → validar → revisar → marcar task → próxima."
 } >&2
