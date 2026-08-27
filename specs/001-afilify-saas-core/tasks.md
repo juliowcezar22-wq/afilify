@@ -191,7 +191,7 @@ o coletado corresponde à amostra.
 - [x] T064 Regressão completa: suíte Python, lint, typegen, tsc, build
 - [x] T065 Validação com disparos reais no grupo de teste, registrada em `VALIDATION.md` (D33)
 - [x] T066 Documentação: README e docs de produto atualizados
-- [ ] T067 Relatório final e checklist de revisão para o QA humano
+- [x] T067 Relatório final e checklist de revisão para o QA humano
 
 ---
 
