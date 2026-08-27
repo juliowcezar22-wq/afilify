@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 7 — Ritmo, Dashboard e conexões (Fases 1–6 fechadas)
+**Fase atual**: 8 — Mensagens, desempenho e área técnica (Fases 1–7 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -26,7 +26,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 | 4 — Projetos e Automações (US3) | T024–T030 | ✓ 7 de 7 |
 | 5 — Fonte configurável (US4) | T031–T041 | ✓ 11 de 11 |
 | 6 — Publicações e destinos (US5) | T042–T049 | ✓ 8 de 8 |
-| 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | 0 |
+| 7 — Ritmo, Dashboard, conexões (US6/US7) | T050–T055 | ✓ 6 de 6 |
 | 8 — Mensagens, desempenho, área técnica | T056–T060 | 0 |
 | 9 — Fechamento | T061–T067 | 0 |
 
@@ -139,6 +139,27 @@ serve como grupo de validação sem criar nada novo (D33).
 
 **Fases 1 e 3 fechadas com verificação completa.**
 
+
+### Fase 7 — ritmo, conexão do Mercado Livre e contas (2026-08-27)
+
+**Ritmo por automação**: volume, janela e validade. A hora vive como HH:MM na tela e decimal no
+contrato do motor — a conversão e a validação acontecem na borda, então janela invertida, campo
+vazio ou mínimo maior que o máximo não chegam ao banco. Dispersão, jitter, intervalo entre
+destinos e teto de segurança **não aparecem**: são decisões da Afilify.
+
+**Validação da conexão do Mercado Livre**: prova gerando um link de verdade, com a tag do
+workspace. Confirmado nesta sessão — link gerado, tag `ceju…3443`, 19 dias restantes de sessão.
+
+**Falso negativo encontrado e corrigido**: a validação usava um endereço de produto inventado
+como alvo. O Mercado Livre recusa endereço que não existe, então ela reportava "não gerou link"
+para uma sessão perfeitamente boa — e mandaria o usuário reconectar uma conta sem problema
+nenhum. Agora ela colhe um anúncio real da vitrine (que não exige sessão, e por isso funciona
+mesmo com a busca bloqueada).
+
+**Contas de usuário no banco**, substituindo a credencial única de ambiente — que continua
+aceita como porta dos fundos, senão uma instalação com o banco fora do ar ficaria trancada para
+fora. Email inexistente e senha errada devolvem a mesma resposta: dizer qual dos dois falhou
+entregaria a lista de quem tem conta.
 
 ### Fase 6 — publicações, destinos e proteção da conta (2026-08-27)
 

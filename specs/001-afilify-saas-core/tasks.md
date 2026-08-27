@@ -159,16 +159,16 @@ o coletado corresponde à amostra.
 
 ## Fase 7 — US6, US7 e conexões restantes (P1)
 
-- [ ] T050 [US6] Ritmo & Regras sobre a automação: volume, janela, validade — sem dispersão,
+- [x] T050 [US6] Ritmo & Regras sobre a automação: volume, janela, validade — sem dispersão,
       jitter, hora decimal ou proporção interna (FR-044)
-- [ ] T051 [US6] Aviso de quando cada mudança entra em vigor (FR-045)
-- [ ] T052 [US7] Dashboard: funcionando / o que aconteceu hoje / o que precisa de atenção, com
+- [x] T051 [US6] Aviso de quando cada mudança entra em vigor (FR-045)
+- [x] T052 [US7] Dashboard: funcionando / o que aconteceu hoje / o que precisa de atenção, com
       indicador e lista usando o mesmo critério (FR-051, US7)
-- [ ] T053 Conexão Mercado Livre: estado real da sessão, aviso antecipado de expiração e
+- [x] T053 Conexão Mercado Livre: estado real da sessão, aviso antecipado de expiração e
       ofertas retidas — **sem construir fluxo de conexão** (D26, FR-063)
-- [ ] T054 Validação da conexão do Mercado Livre gerando link de teste com a tag do workspace
+- [x] T054 Validação da conexão do Mercado Livre gerando link de teste com a tag do workspace
       (FR-018) e garantia de atribuição correta (FR-002 da US2, SC recorrente)
-- [ ] T055 [P] Autenticação real de usuário substituindo o cookie de usuário único (FR-050)
+- [x] T055 [P] Autenticação real de usuário substituindo o cookie de usuário único (FR-050)
 
 ---
 

@@ -48,6 +48,7 @@ from datetime import datetime, timedelta, timezone
 
 from nucleo.comum import *  # noqa: F401,F403
 from nucleo import comandos, teste_busca
+from nucleo.conexoes import mercadolivre as conexao_ml
 from mercadolivre.config import *  # noqa: F401,F403
 from nucleo.comum import AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO
 from mercadolivre.buscador import (
@@ -1161,6 +1162,7 @@ def cmd_limpar(args) -> int:
 # qualquer coisa daqui de dentro.
 EXECUTORES = {
     "testar_busca": lambda con, params: teste_busca.executar(con, params),
+    "validar_conexao_ml": lambda con, params: conexao_ml.validar(con, params),
 }
 
 

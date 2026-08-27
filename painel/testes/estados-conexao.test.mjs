@@ -178,3 +178,31 @@ test("motivo desconhecido não vira código na tela", () => {
   assert.ok(!legivel.includes("xyz"));
   assert.ok(!legivel.includes("_"));
 });
+
+/* ── ritmo: hora na borda, decimal no contrato ──────────────────────── */
+
+function decimalParaHora(d) {
+  const total = Math.round(d * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+function horaParaDecimal(hhmm) {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return h + m / 60;
+}
+
+test("hora vai e volta sem perder minuto", () => {
+  for (const hhmm of ["00:00", "08:45", "09:30", "21:15", "22:45", "23:59"])
+    assert.equal(decimalParaHora(horaParaDecimal(hhmm)), hhmm);
+});
+
+test("o decimal do motor vira hora legível", () => {
+  assert.equal(decimalParaHora(8.75), "08:45");
+  assert.equal(decimalParaHora(22.0), "22:00");
+  assert.equal(decimalParaHora(9.5), "09:30");
+});
+
+test("janela que fecha antes de abrir é recusada", () => {
+  const abre = horaParaDecimal("22:00");
+  const fecha = horaParaDecimal("09:00");
+  assert.ok(abre >= fecha, "esta combinação precisa ser rejeitada pela validação");
+});

@@ -36,6 +36,9 @@ instância de produção, nunca no grupo real (D33).
 | 9 | Sincronizar grupos sem conexão explica o que fazer | "Conecte esta conta antes de sincronizar os grupos." | 2026-08-27 | ✓ |
 | 10 | Remover conexão adotada NÃO destrói a conta do usuário | Conexão criada adotando `Pessoal`, removida; instância continua na conta | 2026-08-27 | ✓ (após correção) |
 | 11 | Usuário escaneia o QR e a conta conecta | Feito pelo dono em 27/08: instância `Teste` criada pela Afilify e pareada; aparece no painel do provedor como `connected`, perfil "Júlio César - B2C" | 2026-08-27 | ✓ |
+| 28 | Ritmo valida na borda | Janela invertida, horário vazio e mínimo > máximo recusados com frase; ritmo válido gravado em decimal (08:45 → 8.75) | 2026-08-27 | ✓ |
+| 29 | Conexão do Mercado Livre provada com link real | Link gerado (`meli.la/…`), tag `ceju…3443`, 19 dias restantes | 2026-08-27 | ✓ (após corrigir falso negativo) |
+| 30 | Login contra conta do banco | Senha certa 200 + cookie + último acesso; senha errada 401; email inexistente com a MESMA resposta | 2026-08-27 | ✓ |
 | 26 | Destinos: ordem, duplicata e volume somado | Ordem sequencial; repetido recusado; outra automação no mesmo grupo cria e avisa nomeando qual | 2026-08-27 | ✓ |
 | 27 | Telas de Ofertas e Publicações sob o modelo novo | HTML servido mostra "Publicada", "Aguardando", "Não saiu", "2ª tentativa", "Reconecte sua conta" — e nenhum termo interno | 2026-08-27 | ✓ |
 | 22 | Testar busca traz ofertas reais e os critérios filtram | Página de ofertas do ML: 16 sem filtro → 12 com ≥30% → 6 com faixa até R$200 → 0 com ≥80% + explicação | 2026-08-27 | ✓ |
