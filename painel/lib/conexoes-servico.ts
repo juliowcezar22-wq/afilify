@@ -214,8 +214,12 @@ export async function sincronizarEstado(id: string): Promise<ConexaoExibivel> {
     },
   });
 
-  // Conectou agora: os grupos são o que o usuário quer ver em seguida.
-  if (conectouAgora) await sincronizarGrupos(id).catch(() => undefined);
+  // Conectou agora: os grupos são o que o usuário quer ver em seguida, e é
+  // o momento certo de pedir que a plataforma avise sobre quedas futuras.
+  if (conectouAgora) {
+    await sincronizarGrupos(id).catch(() => undefined);
+    await ligarAvisos(id).catch(() => undefined);
+  }
 
   const atualizada = await repo.obter(id);
   return exibivel(atualizada!);
@@ -308,4 +312,56 @@ function comoErroDeAcao(e: unknown): ErroDeAcao {
     "Algo deu errado por aqui. Tente de novo em instantes.",
     500,
   );
+}
+
+/**
+ * Um aviso da plataforma sobre uma conta mudou de estado.
+ *
+ * O envelope varia conforme o evento, então procuramos o identificador da
+ * conta em mais de um lugar em vez de exigir um formato exato — um aviso
+ * que não sabemos ler é preferível a um aviso descartado.
+ *
+ * A consulta de estado continua existindo como rede de segurança: se o
+ * aviso não chegar (painel reiniciando, rede instável), a próxima consulta
+ * corrige. Aviso é o caminho rápido, não o único.
+ */
+export async function registrarAvisoDeConexao(evento: Record<string, unknown>): Promise<void> {
+  const instancia = evento.instance ?? evento.instance_id ?? evento.instanceId;
+  const bruto = evento.instance && typeof evento.instance === "object"
+    ? (evento.instance as Record<string, unknown>)
+    : evento;
+  const identificador = String(
+    (typeof instancia === "string" ? instancia : "") || bruto.id || bruto.instanceId || "",
+  );
+  if (!identificador) return;
+
+  const conexao = (await repo.listar("whatsapp")).find(
+    (c) => c.identificadorExterno === identificador,
+  );
+  if (!conexao) return;
+
+  // Reconsultamos em vez de confiar no corpo do aviso: o aviso diz "olhe de
+  // novo", e a fonte da verdade continua sendo a consulta — que também
+  // resolve a diferença entre "caiu sozinha" e "eu desconectei".
+  await sincronizarEstado(conexao.id);
+}
+
+/**
+ * Liga os avisos para uma conexão. Precisa de um endereço público
+ * (`APP_URL`) e do segredo — sem eles, a plataforma continua funcionando
+ * pela consulta de estado, só que sabendo das quedas mais tarde.
+ */
+export async function ligarAvisos(id: string): Promise<{ ligado: boolean; motivo?: string }> {
+  const base = (process.env.APP_URL ?? "").replace(/\/+$/, "");
+  const segredo = process.env.WEBHOOK_SEGREDO ?? "";
+  if (!base || !segredo)
+    return { ligado: false, motivo: "sem endereço público configurado nesta instalação" };
+  const credencial = await repo.credencialDe(id);
+  if (!credencial) return { ligado: false, motivo: "conexão sem credencial" };
+  try {
+    await msg.assinarAvisos(credencial, `${base}/api/avisos/whatsapp/${segredo}`);
+    return { ligado: true };
+  } catch (e) {
+    return { ligado: false, motivo: e instanceof msg.ErroMensageria ? e.paraUsuario : "falha ao ligar" };
+  }
 }

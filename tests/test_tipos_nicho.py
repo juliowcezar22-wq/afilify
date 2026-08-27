@@ -14,15 +14,18 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-os.environ.setdefault("ML_BANCO", os.path.join(tempfile.mkdtemp(), "tipos.db"))
+os.environ.setdefault(
+    "ML_BANCO", os.path.join(tempfile.mkdtemp(prefix="afilify-test-"), "tipos.db"))
 
 from nucleo import comum, tipos_nicho  # noqa: E402
 
 
 class Semeadura(unittest.TestCase):
     def setUp(self):
-        self.pasta = tempfile.mkdtemp()
+        self.pasta = tempfile.mkdtemp(prefix="afilify-test-")
         comum.BANCO = os.path.join(self.pasta, "teste.db")
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
         self.con = comum.abrir_banco()
 
     def tearDown(self):
@@ -59,8 +62,10 @@ class Semeadura(unittest.TestCase):
 
 class Curadoria(unittest.TestCase):
     def setUp(self):
-        self.pasta = tempfile.mkdtemp()
+        self.pasta = tempfile.mkdtemp(prefix="afilify-test-")
         comum.BANCO = os.path.join(self.pasta, "teste.db")
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
         self.con = comum.abrir_banco()
         tipos_nicho.semear(self.con)
 

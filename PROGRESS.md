@@ -14,15 +14,15 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 3 — Conexão WhatsApp (P0), em paralelo com a 2
+**Fase atual**: 2 — Contexto explícito no motor (Fases 1 e 3 fechadas)
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
 | Fase | Tarefas | Concluídas |
 |---|---|---|
-| 1 — Fundação bloqueante | T001–T007 | 6 (falta T005) |
+| 1 — Fundação bloqueante | T001–T007 | ✓ 7 de 7 |
 | 2 — Contexto explícito no motor | T008–T012 | 0 |
-| 3 — Conexão WhatsApp (US1) | T013–T023 | 9 |
+| 3 — Conexão WhatsApp (US1) | T013–T023 | ✓ 11 de 11 |
 | 4 — Projetos e Automações (US3) | T024–T030 | 0 |
 | 5 — Fonte configurável (US4) | T031–T041 | 0 |
 | 6 — Publicações e destinos (US5) | T042–T049 | 0 |
@@ -121,6 +121,23 @@ serve como grupo de validação sem criar nada novo (D33).
   Corrigido nos dois lados; 503 também passou a ter mensagem própria. Provado com o limite
   real: adotar a terceira instância passa, conectar devolve
   "Todos os seus WhatsApps disponíveis já estão conectados. Desconecte um antes de conectar outro."
+
+- **T005 · Oferta e Publicação** — `db/0010`: identidade da oferta por projeto (a mesma oferta
+  passa a existir em dois projetos sem colidir) e publicação com identidade própria (a mesma
+  oferta em dois destinos, e republicação por queda de preço, ambas impossíveis antes).
+  14 testes de integridade, cada um cobrindo um caso que o modelo antigo não comportava.
+- **T017 · avisos de conexão** — assinatura do evento de estado na plataforma, rota pública
+  protegida por chave secreta, e a consulta de estado mantida como rede de segurança. O aviso
+  chega no painel, nunca no motor — mesmo princípio já adotado para o monitoramento.
+- **T020 · queda visível** — Dashboard passa a mostrar conexões com problema antes de qualquer
+  contagem de ofertas, dizendo que as automações dependentes não publicam e levando à tela
+  onde se resolve.
+- **Gate de fase** (`scripts/harness/fase.sh`) — uma fase só fecha sem tarefa aberta E com
+  verificação completa passando. Na primeira tentativa ele **barrou** o fechamento da Fase 1:
+  meus testes novos criavam banco temporário sem o prefixo `afilify-test-` e derrubavam a
+  guarda que outros testes usam para recusar banco real. Corrigido e fechado.
+
+**Fases 1 e 3 fechadas com verificação completa.**
 
 ### 2026-08-26
 

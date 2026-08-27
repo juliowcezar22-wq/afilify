@@ -230,3 +230,38 @@ export async function listarGrupos(credencial: string): Promise<GrupoRemoto[]> {
   }
   return saida;
 }
+
+/**
+ * Manda a plataforma avisar a Afilify quando o estado da conta mudar.
+ *
+ * Sem isto, descobrir que uma conexão caiu dependeria de alguém abrir a
+ * tela na hora certa — e o usuário só perceberia pela ausência de
+ * publicações, que é tarde demais.
+ *
+ * O aviso chega no painel, nunca no motor: é o motor que guarda credenciais
+ * e publica, e ele não deve ficar exposto à internet. Mesmo princípio já
+ * adotado no projeto para as mensagens do monitoramento.
+ */
+export async function assinarAvisos(credencial: string, urlPublica: string): Promise<void> {
+  await chamar("/webhook", {
+    metodo: "POST",
+    corpo: {
+      enabled: true,
+      url: urlPublica,
+      events: ["connection"],
+      excludeMessages: ["wasSentByApi"],
+      addUrlEvents: false,
+    },
+    cabecalhos: { token: credencial },
+  });
+}
+
+/** O que a plataforma já avisa hoje — para a tela dizer a verdade. */
+export async function avisosAssinados(credencial: string): Promise<string[]> {
+  const dados = await chamar("/webhook", { cabecalhos: { token: credencial } });
+  const itens = (Array.isArray(dados) ? dados : ((dados.webhooks as unknown[]) ?? [])) as Record<
+    string,
+    unknown
+  >[];
+  return itens.filter((w) => w?.enabled).map((w) => txt(w.url));
+}

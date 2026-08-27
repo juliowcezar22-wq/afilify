@@ -9,10 +9,21 @@ import { Indicador } from "@/components/ui/indicador";
 import { Selo } from "@/components/ui/selo";
 import { SemDados } from "@/components/ui/sem-dados";
 import { EstadoVazio } from "@/components/ui/estado-vazio";
+import * as conexoes from "@/lib/conexoes-servico";
 
 export const dynamic = "force-dynamic";
 
 const n = (v: unknown) => Number(v ?? 0);
+
+/* O que dizer de cada conexão com problema — a frase precisa apontar a saída,
+   não só nomear o estado. */
+const MOTIVO_CONEXAO: Record<string, string> = {
+  sessao_perdida: "A conexão caiu",
+  precisa_reconectar: "Precisa reconectar",
+  desconectado: "Desconectada",
+  codigo_expirado: "Falta concluir a conexão",
+  erro: "Precisa de atenção",
+};
 
 /** Responde: está funcionando? o que aconteceu hoje? algo precisa de mim? */
 export default async function Dashboard() {
@@ -56,6 +67,13 @@ export default async function Dashboard() {
       ),
     ]);
 
+  // Uma conexão caída para a operação inteira, e o usuário não descobriria
+  // pela contagem de ofertas — descobriria pela ausência delas, tarde demais.
+  const conexoesComProblema = await conexoes
+    .listar()
+    .then((cs) => cs.filter((c) => c.precisaAtencao))
+    .catch(() => []);
+
   const agora = agoraMs();
   const saude = batidas
     .map((b) => ({
@@ -64,7 +82,8 @@ export default async function Dashboard() {
     }))
     .filter((s) => !ctx.ativo || s.slug === ctx.ativo.slug);
 
-  const tudoBem = saude.length > 0 && saude.every((s) => s.ok) && atencao === 0;
+  const tudoBem =
+    saude.length > 0 && saude.every((s) => s.ok) && atencao === 0 && conexoesComProblema.length === 0;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -91,6 +110,33 @@ export default async function Dashboard() {
           href="/ofertas?status=ERRO"
         />
       </div>
+
+      {conexoesComProblema.length > 0 && (
+        <div className="mt-4 rounded-xl border border-erro/30 bg-erro/5 p-5">
+          <p className="font-medium text-erro">
+            {conexoesComProblema.length === 1
+              ? "Uma conexão precisa da sua atenção"
+              : `${conexoesComProblema.length} conexões precisam da sua atenção`}
+          </p>
+          <p className="mt-1 text-sm text-tinta2">
+            Enquanto isso, as automações que dependem delas não publicam.
+          </p>
+          <ul className="mt-3 grid grid-cols-1 gap-2 text-sm">
+            {conexoesComProblema.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="truncate">{c.perfil || c.nome}</span>
+                <Selo tom="erro">{MOTIVO_CONEXAO[c.estado] ?? "Precisa de atenção"}</Selo>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/conexoes"
+            className="mt-3 inline-block text-sm font-semibold text-acento hover:underline"
+          >
+            Resolver em Conexões →
+          </Link>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Cartao titulo="Saúde da operação">

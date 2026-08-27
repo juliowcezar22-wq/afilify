@@ -26,7 +26,7 @@ rodada · P2 completa a experiência · P3 pode esperar sem prejudicar o uso.
 - [x] T004 Migração `db/0009_entidades.sql`: `usuario`, `conexao`, `grupo_conexao`,
       `tipo_nicho`, `projeto`, `automacao`, `fonte`, `execucao_fonte`, `destino`, `comando`,
       `limite_plano` (data-model.md)
-- [ ] T005 Migração `db/0010_ofertas_publicacoes.sql`: nova identidade de oferta por projeto e
+- [x] T005 Migração `db/0010_ofertas_publicacoes.sql`: nova identidade de oferta por projeto e
       tabela `publicacao` com chave de idempotência por ciclo (R9, R10)
 - [x] T006 [P] `nucleo/cripto.py`: cifra/decifra AES-256-GCM com chave mestra de ambiente,
       mais o equivalente no painel com `node:crypto` (R4, FR-020)
@@ -70,13 +70,13 @@ pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
 - [x] T015 [US1] Tradutor de estados: quatro do provedor + estado local → onze estados de
       produto (FR-011, data-model.md)
 - [x] T016 [P] [US1] Rotas `POST /api/conexoes`, `/conectar`, `GET /estado` (api-painel.md)
-- [ ] T017 [US1] Webhook `connection` como sinal primário; consulta de estado só enquanto o
+- [x] T017 [US1] Webhook `connection` como sinal primário; consulta de estado só enquanto o
       código está na tela (R5, FR-012)
 - [x] T018 [US1] Tela de conexão: QR em ≤10s, mudança de estado sem recarga, expiração com
       novo código sob demanda, número mascarado e perfil ao conectar
 - [x] T019 [US1] Sincronizar grupos com cache em `grupo_conexao` e "Última sincronização"
       (FR-015, FR-016)
-- [ ] T020 [US1] Detecção de queda e reconexão, com aviso no Dashboard e nas automações
+- [x] T020 [US1] Detecção de queda e reconexão, com aviso no Dashboard e nas automações
       afetadas (FR-014)
 - [x] T021 [US1] Renomear, desconectar e remover com recusa quando há automação ativa usando
       a conexão (FR-022)
