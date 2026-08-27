@@ -94,3 +94,25 @@ depois da validação manual e do merge.
 Decorre de D33 e de incidente anterior registrado no projeto: a worktree nunca aponta para o
 banco da operação. A validação usa banco próprio, semeado com cópia dos dados reais quando
 precisar de fidelidade. Publicações de teste vão para o grupo de teste, nunca para o grupo real.
+
+## 2026-08-27 · D36 — Operações de conexão saem do painel, não da fila de comandos
+A fila de comandos (R3) existe para o que **precisa do motor**: buscar ofertas, testar busca,
+publicar. Conectar um WhatsApp não precisa — são chamadas HTTP simples, e passar pela fila
+significaria que ninguém consegue conectar uma conta quando o motor está parado. Como conectar
+é pré-requisito de tudo, essa dependência seria um laço: sem conexão a automação não roda, e
+sem automação rodando não dá para conectar.
+
+**Consequência**: o painel decifra credenciais, então a chave mestra existe nos dois serviços.
+Ambos são servidores confiáveis; nenhuma credencial chega ao navegador em nenhum caso.
+
+**Consequência**: existem dois clientes da plataforma de mensagens — Python (envio, publicação)
+e TypeScript (ciclo de conexão). É duplicação consciente e delimitada: cada um usa a parte da
+API que lhe cabe, e o contrato está versionado em `contracts/`.
+Reversível: sim.
+
+## 2026-08-27 · D37 — Formato de credencial cifrada é comum aos dois lados
+`v1.<nonce>.<texto+tag>` em base64url, AES-256-GCM, chave mestra de 32 bytes em
+`AFILIFY_CHAVE_MESTRA`. O Python usa `cryptography`; o painel usa `node:crypto` e concatena o
+tag ao fim do texto cifrado, que é como a biblioteca do Python já entrega. Teste de
+interoperabilidade nos dois sentidos faz parte da suíte — cifra que só um lado lê seria uma
+bomba-relógio no dia de um incidente.

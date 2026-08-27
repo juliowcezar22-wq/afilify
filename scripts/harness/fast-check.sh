@@ -34,6 +34,15 @@ else
   echo "✓ typecheck ok"
 fi
 
+echo "→ testes do painel"
+if ! (cd "$PAINEL" && pnpm test >/tmp/afilify-testes-painel.log 2>&1); then
+  echo "✗ testes do painel falharam:"
+  tail -30 /tmp/afilify-testes-painel.log
+  FALHAS=1
+else
+  echo "✓ testes do painel ok ($(grep -oE '^# pass [0-9]+' /tmp/afilify-testes-painel.log | tail -1))"
+fi
+
 if [ "$FALHAS" -ne 0 ]; then
   echo "── fast-check: FALHOU ──"
   exit 1

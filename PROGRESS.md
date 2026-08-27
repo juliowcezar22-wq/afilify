@@ -22,7 +22,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 |---|---|---|
 | 1 — Fundação bloqueante | T001–T007 | 6 (falta T005) |
 | 2 — Contexto explícito no motor | T008–T012 | 0 |
-| 3 — Conexão WhatsApp (US1) | T013–T023 | 3 |
+| 3 — Conexão WhatsApp (US1) | T013–T023 | 7 |
 | 4 — Projetos e Automações (US3) | T024–T030 | 0 |
 | 5 — Fonte configurável (US4) | T031–T041 | 0 |
 | 6 — Publicações e destinos (US5) | T042–T049 | 0 |
@@ -84,6 +84,30 @@ e linguagem: ✓.
 
 **Descoberta útil**: já existe um grupo chamado `Teste` (2 participantes) na conta de produção —
 serve como grupo de validação sem criar nada novo (D33).
+
+- **T016, T018, T021 · conexão ponta a ponta no painel** — cifra interoperável entre motor e
+  painel (testada nos dois sentidos), repositório de conexões, seis rotas e a tela com QR,
+  contagem regressiva do código, sincronizar grupos, desconectar e remover.
+  Exercitado contra o serviço real: QR de 1842 caracteres gerado, credencial gravada cifrada
+  (`v1.…`, 90 caracteres), ciclo `aguardando_leitura → codigo_expirado → aguardando_leitura`.
+- **T022 · testes da tradução de estados** — 8 casos, importando o módulo real (`lib/estados.ts`),
+  rodando no test runner do Node sem dependência nova. Ligados ao `fast-check`.
+
+**Três defeitos encontrados pelo teste com serviço real, não por revisão de código:**
+
+1. **Rotas invisíveis** — `route.ts` exportava um utilitário além dos handlers, e o Next
+   descartou as seis rotas **sem erro**. Só apareceu ao conferir a saída do build linha a linha.
+   Corrigido movendo para `lib/resposta.ts`.
+2. **"Conectando" enganoso** — o provedor fica em `connecting` durante todo o pareamento
+   pendente. Traduzido direto, a tela dizia "Conectando" enquanto, na verdade, esperava o
+   usuário pegar o celular — e o código venceria sem nada mudar na tela. Depois de vencido,
+   `connecting` ainda apagava o aviso de expiração, prendendo a conexão. A lógica virou função
+   pura em `lib/estados.ts`, com teste para cada engano.
+3. **Remoção destrutiva** — remover uma conexão apagava a conta no provedor mesmo quando ela
+   tinha sido **adotada** (já existia antes da Afilify). Durante o teste isso apagou a
+   instância `Pessoal` da conta real. Ela estava desconectada, então nenhuma sessão de WhatsApp
+   caiu; foi recriada em seguida. Corrigido: só destruímos o que nós criamos
+   (`provisionadaPelaAfilify`), e o teste de integração confirma que a conta adotada sobrevive.
 
 ### 2026-08-26
 

@@ -18,3 +18,4 @@ __pycache__/
 SEGREDOS-EASYPANEL.txt
 .harness/
 .venv/
+.env.local

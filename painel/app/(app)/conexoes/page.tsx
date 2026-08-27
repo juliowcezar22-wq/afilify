@@ -1,6 +1,9 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { CabecalhoPagina } from "@/components/ui/cabecalho-pagina";
+import { WhatsAppContas, type ContaWhatsApp } from "./whatsapp-contas";
+import * as conexoes from "@/lib/conexoes-servico";
+import { podeProvisionar } from "@/lib/mensageria";
 import { Cartao } from "@/components/ui/cartao";
 import { Selo } from "@/components/ui/selo";
 import { DetalhesTecnicos } from "@/components/ui/detalhes-tecnicos";
@@ -33,46 +36,17 @@ const APRESENTACAO: Record<EstadoConexao, { rotulo: string; tom: Tom }> = {
   ausente: { rotulo: "Não configurada", tom: "neutro" },
 };
 
-async function contaWhatsApp(): Promise<Conta[]> {
-  const url = process.env.UAZAPI_URL,
-    token = process.env.UAZAPI_TOKEN;
-  if (!url || !token) return [];
+/* O WhatsApp deixou de ser "a conta do ambiente": são conexões do workspace,
+   cada uma com seu ciclo de vida próprio (criar, parear, cair, reconectar). */
+async function contasWhatsApp(): Promise<{ contas: ContaWhatsApp[]; adotaveis: Awaited<ReturnType<typeof conexoes.contasAdotaveis>> }> {
   try {
-    const r = await fetch(`${url}/instance/status`, {
-      headers: { token },
-      signal: AbortSignal.timeout(5000),
-      cache: "no-store",
-    });
-    const d = await r.json();
-    const i = d.instance ?? {};
-    const bruto = String(i.status ?? "");
-    const estado: EstadoConexao =
-      bruto === "connected" ? "conectado" : bruto === "connecting" ? "conectando" : "desconectado";
-    return [
-      {
-        nome: String(i.profileName ?? i.name ?? "Conta principal"),
-        estado,
-        resumo:
-          estado === "conectado"
-            ? "Pronta para publicar nos seus grupos."
-            : estado === "conectando"
-              ? "Estabelecendo a conexão — isso leva alguns instantes."
-              : "Reconecte para voltar a publicar nos seus grupos.",
-        tecnicos: [
-          ["instância", String(i.name ?? "—")],
-          ["status", bruto || "—"],
-        ],
-      },
-    ];
+    const [contas, adotaveis] = await Promise.all([
+      conexoes.listar("whatsapp"),
+      conexoes.contasAdotaveis().catch(() => []),
+    ]);
+    return { contas: contas as ContaWhatsApp[], adotaveis };
   } catch {
-    return [
-      {
-        nome: "Conta principal",
-        estado: "desconectado",
-        resumo: "O serviço de WhatsApp não respondeu — tente novamente em instantes.",
-        tecnicos: [["status", "sem resposta do provedor"]],
-      },
-    ];
+    return { contas: [], adotaveis: [] };
   }
 }
 
@@ -130,9 +104,12 @@ function contaShopee(): Conta[] {
 const FUTURAS = ["Amazon", "Magalu", "Shein", "TikTok Shop", "Telegram"];
 
 export default async function Conexoes() {
-  const [wa, ml] = await Promise.all([contaWhatsApp(), contaMercadoLivre()]);
+  const [wa, ml] = await Promise.all([contasWhatsApp(), contaMercadoLivre()]);
+  // Mercado Livre e Shopee continuam mostrando estado real, sem fluxo de
+  // conexão: a renovação do Mercado Livre vive fora da Afilify até a extensão
+  // existir (decisão D26) — e simular um fluxo que não funciona seria pior
+  // que dizer a verdade.
   const plataformas: Plataforma[] = [
-    { plataforma: "WhatsApp", contas: wa },
     { plataforma: "Mercado Livre", contas: ml },
     { plataforma: "Shopee", contas: contaShopee() },
   ];
@@ -145,6 +122,14 @@ export default async function Conexoes() {
       />
 
       <div className="mt-6 grid grid-cols-1 gap-4">
+        <Cartao titulo="WhatsApp">
+          <WhatsAppContas
+            contas={wa.contas}
+            adotaveis={wa.adotaveis}
+            podeCriar={podeProvisionar()}
+          />
+        </Cartao>
+
         {plataformas.map(({ plataforma, contas }) => (
           <Cartao key={plataforma} titulo={plataforma}>
             {contas.length === 0 ? (

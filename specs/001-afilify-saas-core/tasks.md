@@ -69,18 +69,18 @@ pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
       estado, desconectar, listar/criar grupos, enviar — sobre o contrato já validado
 - [x] T015 [US1] Tradutor de estados: quatro do provedor + estado local → onze estados de
       produto (FR-011, data-model.md)
-- [ ] T016 [P] [US1] Rotas `POST /api/conexoes`, `/conectar`, `GET /estado` (api-painel.md)
+- [x] T016 [P] [US1] Rotas `POST /api/conexoes`, `/conectar`, `GET /estado` (api-painel.md)
 - [ ] T017 [US1] Webhook `connection` como sinal primário; consulta de estado só enquanto o
       código está na tela (R5, FR-012)
-- [ ] T018 [US1] Tela de conexão: QR em ≤10s, mudança de estado sem recarga, expiração com
+- [x] T018 [US1] Tela de conexão: QR em ≤10s, mudança de estado sem recarga, expiração com
       novo código sob demanda, número mascarado e perfil ao conectar
 - [ ] T019 [US1] Sincronizar grupos com cache em `grupo_conexao` e "Última sincronização"
       (FR-015, FR-016)
 - [ ] T020 [US1] Detecção de queda e reconexão, com aviso no Dashboard e nas automações
       afetadas (FR-014)
-- [ ] T021 [US1] Renomear, desconectar e remover com recusa quando há automação ativa usando
+- [x] T021 [US1] Renomear, desconectar e remover com recusa quando há automação ativa usando
       a conexão (FR-022)
-- [ ] T022 [P] [US1] Testes: máquina de estados completa, expiração de código, queda,
+- [x] T022 [P] [US1] Testes: máquina de estados completa, expiração de código, queda,
       reconexão, remoção bloqueada
 - [ ] T023 [US1] Validação real na instância `Pessoal`: percorrer os seis cenários de aceitação
       de US1 e registrar em `VALIDATION.md`
