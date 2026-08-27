@@ -14,7 +14,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 ## Situação
 
-**Fase atual**: 1 — Fundação bloqueante
+**Fase atual**: 3 — Conexão WhatsApp (P0), em paralelo com a 2
 **Branch**: `feat/afilify-saas-redesign` (worktree isolada; sem push, sem merge, sem deploy)
 **Produção**: intocada — roda na VPS/EasyPanel, com o modelo antigo
 
@@ -22,7 +22,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 |---|---|---|
 | 1 — Fundação bloqueante | T001–T007 | 6 (falta T005) |
 | 2 — Contexto explícito no motor | T008–T012 | 0 |
-| 3 — Conexão WhatsApp (US1) | T013–T023 | 0 |
+| 3 — Conexão WhatsApp (US1) | T013–T023 | 3 |
 | 4 — Projetos e Automações (US3) | T024–T030 | 0 |
 | 5 — Fonte configurável (US4) | T031–T041 | 0 |
 | 6 — Publicações e destinos (US5) | T042–T049 | 0 |
@@ -64,6 +64,26 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 **Suíte**: 111 testes, todos passando (87 herdados + 24 novos). Gates de congelados, anti-mock
 e linguagem: ✓.
+
+- **T013 · risco do provisionamento, resolvido** — criada instância descartável na conta real:
+  `POST /instance/create` devolveu 200 com `info` **vazio**. O aviso de "apagada em 1 hora" que
+  aparece no OpenAPI era exemplo, não comportamento desta conta. `DELETE /instance` removeu, e
+  a listagem voltou às duas instâncias originais. **O provisionamento automático fica em pé.**
+- **T014 · cliente de WhatsApp** — `nucleo/conexoes/whatsapp.py`: criar, adotar, parear (QR e
+  código digitável), consultar, desconectar, apagar, listar/criar grupos, limites do número e
+  espaçamento nativo. É o único módulo que sabe qual é o fornecedor.
+  Verificado contra a conta real: 2 contas traduzidas para estados de produto, 4 grupos por
+  nome, diagnóstico de limites respondendo "sem restrição".
+- **T015 · tradutor de estados** — quatro estados do provedor viram os onze do produto. Estado
+  desconhecido vira `erro`, nunca "conectado" — um estado novo do fornecedor não pode ser lido
+  como "está tudo bem".
+- **T022 (parcial) · testes** — 23 testes do cliente, sem rede, sobre respostas capturadas da
+  API real. Cobrem o que quebra na prática: já conectado antes de a tela pedir, resposta sem
+  código, grupo sem nome, queda de rede — e garantem que nenhuma mensagem de usuário cita
+  fornecedor, token ou código HTTP.
+
+**Descoberta útil**: já existe um grupo chamado `Teste` (2 participantes) na conta de produção —
+serve como grupo de validação sem criar nada novo (D33).
 
 ### 2026-08-26
 

@@ -63,11 +63,11 @@ rodada · P2 completa a experiência · P3 pode esperar sem prejudicar o uso.
 **Teste independente**: criar conexão, escanear, publicar no grupo de teste, derrubar a sessão
 pelo aparelho, reconectar — tudo pela interface, na instância `Pessoal`.
 
-- [ ] T013 [US1] **Verificar o aviso de 1 hora**: criar instância descartável e observar se ela
+- [x] T013 [US1] **Verificar o aviso de 1 hora**: criar instância descartável e observar se ela
       é mesmo apagada. O resultado decide se o provisionamento automático fica em pé (R5)
-- [ ] T014 [P] [US1] `nucleo/conexoes/whatsapp.py`: criar instância, conectar (QR e pareamento),
+- [x] T014 [P] [US1] `nucleo/conexoes/whatsapp.py`: criar instância, conectar (QR e pareamento),
       estado, desconectar, listar/criar grupos, enviar — sobre o contrato já validado
-- [ ] T015 [US1] Tradutor de estados: quatro do provedor + estado local → onze estados de
+- [x] T015 [US1] Tradutor de estados: quatro do provedor + estado local → onze estados de
       produto (FR-011, data-model.md)
 - [ ] T016 [P] [US1] Rotas `POST /api/conexoes`, `/conectar`, `GET /estado` (api-painel.md)
 - [ ] T017 [US1] Webhook `connection` como sinal primário; consulta de estado só enquanto o
