@@ -452,6 +452,11 @@ QUEDA_REPUBLICA_PCT = 15      # % de queda que justifica republicar. 0 desliga
 
 BANCO = os.environ.get("ML_BANCO", os.path.join(DADOS, "ofertas.db"))
 
+# Workspace padrão: existe uma conta só nesta fase, mas todas as entidades
+# novas já apontam para ela — abrir a plataforma depois é configuração, não
+# migração de dados (decisão D27).
+WORKSPACE_PADRAO = os.environ.get("WORKSPACE_ID", "ws-afilify").strip() or "ws-afilify"
+
 UAZAPI_URL = os.environ.get("UAZAPI_URL", "https://pessoal.uazapi.com").rstrip("/")
 UAZAPI_TOKEN = os.environ.get("UAZAPI_TOKEN", "").strip()
 # UAZAPI_GRUPO: definido pelo perfil, acima
@@ -711,8 +716,50 @@ def abrir_banco():
             con.execute(f"ALTER TABLE ofertas ADD COLUMN {coluna} {tipo}")
     # índices que dependem de coluna migrada vêm DEPOIS do ALTER
     con.execute("CREATE INDEX IF NOT EXISTS idx_ofertas_perfil ON ofertas(perfil)")
+    aplicar_migracoes_comuns(con)
     con.commit()
     return con
+
+
+# As migrações a partir de 0009 são escritas em dialeto que roda igual no
+# SQLite e no Postgres (ver cabeçalho de db/0009_entidades.sql). Assim existe
+# UM schema das entidades novas, não dois que possam divergir.
+PRIMEIRA_MIGRACAO_COMUM = 9
+
+
+def migracoes_comuns() -> list:
+    """Caminhos de db/NNNN_*.sql com NNNN >= 9, em ordem."""
+    pasta = os.path.join(RAIZ, "db")
+    if not os.path.isdir(pasta):
+        return []
+    saida = []
+    for nome in sorted(os.listdir(pasta)):
+        if not nome.endswith(".sql"):
+            continue
+        try:
+            numero = int(nome.split("_", 1)[0])
+        except ValueError:
+            continue
+        if numero >= PRIMEIRA_MIGRACAO_COMUM:
+            saida.append(os.path.join(pasta, nome))
+    return saida
+
+
+def aplicar_migracoes_comuns(con) -> None:
+    """Cria as entidades do núcleo SaaS. Idempotente (IF NOT EXISTS).
+
+    O workspace padrão precisa existir antes: as tabelas novas referenciam
+    workspaces(id), que no SQLite só é criada aqui."""
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS workspaces ("
+        "id TEXT PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT NOT NULL)")
+    con.execute(
+        "INSERT INTO workspaces (id, nome, criado_em) VALUES (?, ?, ?) "
+        "ON CONFLICT (id) DO NOTHING",
+        (WORKSPACE_PADRAO, "Operação Afilify", agora().isoformat(timespec="seconds")))
+    for caminho in migracoes_comuns():
+        with open(caminho, encoding="utf-8") as f:
+            con.executescript(f.read())
 
 
 def ler_estado(con: sqlite3.Connection, chave: str) -> str:

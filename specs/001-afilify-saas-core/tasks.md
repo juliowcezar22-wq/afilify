@@ -17,20 +17,20 @@ rodada · P2 completa a experiência · P3 pode esperar sem prejudicar o uso.
 
 **Nada pode ser declarado pronto antes desta fase.**
 
-- [ ] T001 [P] Criar harness de execução: `TASKS.md`, `PROGRESS.md`, `DECISIONS.md`,
+- [x] T001 [P] Criar harness de execução: `TASKS.md`, `PROGRESS.md`, `DECISIONS.md`,
       `VALIDATION.md` na raiz da worktree, com estado verificável por arquivo
-- [ ] T002 [P] Estender `scripts/harness/` com gate de vocabulário sobre as telas novas e
+- [x] T002 [P] Estender `scripts/harness/` com gate de vocabulário sobre as telas novas e
       gate de "sem dado simulado" (procura por fixture/mock em caminho de produção)
-- [ ] T003 [P] Configurar ambiente de validação isolado (banco separado, `.env` próprio) e
+- [x] T003 [P] Configurar ambiente de validação isolado (banco separado, `.env` próprio) e
       guarda que **recusa** subir apontando para o banco da operação (D35)
-- [ ] T004 Migração `db/0009_entidades.sql`: `usuario`, `conexao`, `grupo_conexao`,
+- [x] T004 Migração `db/0009_entidades.sql`: `usuario`, `conexao`, `grupo_conexao`,
       `tipo_nicho`, `projeto`, `automacao`, `fonte`, `execucao_fonte`, `destino`, `comando`,
       `limite_plano` (data-model.md)
 - [ ] T005 Migração `db/0010_ofertas_publicacoes.sql`: nova identidade de oferta por projeto e
       tabela `publicacao` com chave de idempotência por ciclo (R9, R10)
-- [ ] T006 [P] `nucleo/cripto.py`: cifra/decifra AES-256-GCM com chave mestra de ambiente,
+- [x] T006 [P] `nucleo/cripto.py`: cifra/decifra AES-256-GCM com chave mestra de ambiente,
       mais o equivalente no painel com `node:crypto` (R4, FR-020)
-- [ ] T007 Semear `tipo_nicho` a partir de `nichos/perfumes.py` e `nichos/casa.py`, mantendo os
+- [x] T007 Semear `tipo_nicho` a partir de `nichos/perfumes.py` e `nichos/casa.py`, mantendo os
       arquivos como fonte de versão (FR-038a)
 
 **Checkpoint**: banco de validação de pé, entidades criadas, credenciais cifráveis.

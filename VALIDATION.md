@@ -19,13 +19,15 @@ instância de produção, nunca no grupo real (D33).
 | anti-mock | `scripts/harness/check-mock.sh` | 2026-08-27 | ✓ (e falha comprovada) |
 | congelados | `scripts/harness/guarda-congelados.sh` | 2026-08-27 | ✓ (e falha comprovada) |
 | banco de validação | `scripts/harness/guarda-banco.sh` | 2026-08-27 | ✓ (e bloqueio comprovado) |
-| testes do motor | `python3 -m unittest discover -s tests -t .` | — | — |
+| testes do motor | `python3 -m unittest discover -s tests -t .` | 2026-08-27 | ✓ 111 testes |
 
 ## Validação com dado real
 
 | # | Cenário | Como foi verificado | Data | Resultado |
 |---|---|---|---|---|
-| — | *(nenhuma ainda — a fundação não produz comportamento observável)* | | | |
+| 1 | Entidades novas nascem em banco limpo sem quebrar as antigas | `abrir_banco()` em banco temporário: 19 tabelas, workspace padrão semeado, 87 testes herdados passando | 2026-08-27 | ✓ |
+| 2 | Curadoria de qualidade sobrevive à travessia para dado | Semeado dos nichos reais: 157 marcas de perfumes em 4 famílias, 31 palavras proibidas, contratipo com famílias permitidas | 2026-08-27 | ✓ |
+| 3 | Credencial cifrada não abre com chave trocada nem adulterada | 13 testes de `nucleo/cripto.py` com a biblioteca real | 2026-08-27 | ✓ |
 
 ## Contratos externos verificados
 
@@ -35,3 +37,4 @@ instância de produção, nunca no grupo real (D33).
 | `GET /instance/status` com token de instância | 2026-08-26 | ✓ 200 |
 | Mercado Livre publica API oficial de afiliados? | 2026-08-26 | ✗ não existe — sessão é o único caminho |
 | Instância criada por API expira em 1 hora? | — | **pendente (T013)** — decide se o provisionamento automático fica em pé |
+| DDL de `db/0009` roda no Postgres real | — | **pendente** — exercitado só no SQLite (sem servidor local); entra no fechamento (T064) |

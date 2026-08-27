@@ -17,3 +17,4 @@ __pycache__/
 # segredos do deploy — nunca versionar
 SEGREDOS-EASYPANEL.txt
 .harness/
+.venv/

@@ -20,7 +20,7 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 
 | Fase | Tarefas | Concluídas |
 |---|---|---|
-| 1 — Fundação bloqueante | T001–T007 | 3 |
+| 1 — Fundação bloqueante | T001–T007 | 6 (falta T005) |
 | 2 — Contexto explícito no motor | T008–T012 | 0 |
 | 3 — Conexão WhatsApp (US1) | T013–T023 | 0 |
 | 4 — Projetos e Automações (US3) | T024–T030 | 0 |
@@ -46,6 +46,24 @@ tem evidência — o que foi verificado, com que dado, e qual gate passou.
 - **T003 · guarda do banco** — `guarda-banco.sh` recusa `DATABASE_URL`/`SQLITE_PATH` apontando
   para a operação (`afilify-db`, `julio_db`, IP da VPS, `easypanel.host`, `dados/` do projeto
   principal). Testado nos dois sentidos: bloqueia produção, libera validação.
+
+- **T004 · entidades** — `db/0009_entidades.sql` cria 11 tabelas. Escrita em dialeto que roda
+  igual nos dois bancos, para não existirem duas versões do schema: `abrir_banco()` aplica o
+  MESMO arquivo no SQLite que o `psql` aplica no Postgres. Verificado: banco temporário nasce
+  com as 11 tabelas novas + as 8 antigas, e as 87 testes antigos continuam passando.
+- **T006 · cifra de credenciais** — `nucleo/cripto.py` (AES-256-GCM, chave mestra em
+  `AFILIFY_CHAVE_MESTRA`). O contexto entra como dado autenticado: credencial de uma conexão
+  não abre no lugar de outra. 13 testes, incluindo adulteração detectada e chave trocada.
+  `cryptography` isolada em `.venv` da worktree — o Python do sistema não foi alterado.
+- **T007 · tipos de nicho** — `nucleo/tipos_nicho.py` materializa a curadoria de `nichos/*.py`
+  como dado. Verificado com os nichos reais: Perfumes com 157 marcas em 4 famílias e 31
+  palavras proibidas; Casa com 29 marcas. 11 testes, um deles garantindo que termos de busca
+  **não** entram na curadoria (eles pertencem à Fonte, D28).
+- **Pendência registrada**: o DDL foi exercitado no SQLite; falta exercitá-lo no Postgres real
+  (sem servidor local, Docker parado). Entra no fechamento (T064).
+
+**Suíte**: 111 testes, todos passando (87 herdados + 24 novos). Gates de congelados, anti-mock
+e linguagem: ✓.
 
 ### 2026-08-26
 
