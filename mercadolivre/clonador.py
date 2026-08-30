@@ -351,10 +351,17 @@ def oferta_do_clone(anuncio: dict, url_bruta: str, titulo: str,
     if m_user:
         mlb_id = m_user.group(1).upper()
     else:
-        m = RE_ID_ANUNCIO.search(url_bruta.replace("/p/MLB", "/p/MLB-"))
-        if not m:
-            return None
-        mlb_id = f"MLB{m.group(1)}"
+        # catálogo aceita id curto: /p/MLB6093091 tem 7 dígitos e o Homme
+        # Joop! ficou 3 dias fora do grupo por causa disso. Anúncio avulso
+        # segue exigindo 8+ dígitos, senão categoria (MLB6284) viraria id.
+        m_cat = re.search(r"/p/(MLB\d{5,15})\b", url_bruta, re.I)
+        if m_cat:
+            mlb_id = m_cat.group(1).upper()
+        else:
+            m = RE_ID_ANUNCIO.search(url_bruta)
+            if not m:
+                return None
+            mlb_id = f"MLB{m.group(1)}"
     nome = titulo or anuncio["nome"]
     marca, _, _ = filtrar_marca("", nome)
     de, por = anuncio.get("preco_de") or 0.0, anuncio["preco"]

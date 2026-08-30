@@ -131,6 +131,15 @@ class OfertaDoClone(unittest.TestCase):
             "https://produto.mercadolivre.com.br/MLB-4993818683-perfume-y", "")
         self.assertEqual(o.mlb_id, "MLB4993818683")
 
+    def test_catalogo_com_id_curto(self):
+        # regressão do Homme Joop!: /p/MLB6093091 tem 7 dígitos e era
+        # descartado, deixando a oferta fora do grupo 3 dias seguidos
+        o = oferta_do_clone(self.ANUNCIO,
+            "https://www.mercadolivre.com.br/perfume-homme-joop-125ml/p/MLB6093091",
+            "Perfume Masculino Homme Joop! Eau de Toilette 125ml")
+        self.assertIsNotNone(o)
+        self.assertEqual(o.mlb_id, "MLB6093091")
+
     def test_url_de_anuncio_de_vendedor(self):
         o = oferta_do_clone(self.ANUNCIO,
             "https://www.mercadolivre.com.br/perfume-x/up/MLBU3880520594", "Perfume X")
