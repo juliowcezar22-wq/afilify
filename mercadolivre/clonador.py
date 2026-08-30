@@ -481,7 +481,9 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
                     >= cfg.get("poll_seg", 600)
             except ValueError:
                 vencido = True
-        if vencido or not ids_webhook:
+        # SÓ por tempo: se caísse aqui toda vez que o webhook estivesse
+        # vazio, acelerar o ciclo viraria milhares de chamadas por dia
+        if vencido:
             try:
                 mensagens += mensagens_do_grupo(jid)
                 gravar_estado(con, chave_poll, agora().isoformat(timespec="seconds"))

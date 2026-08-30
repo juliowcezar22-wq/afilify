@@ -1276,6 +1276,8 @@ def clonador_cfg(con) -> dict:
         "janela_min": 90,
         "reclonar_apos_horas": 20,
         "poll_seg": 600,
+        "envio_imediato": True,
+        "pausa_clone_seg": [2, 5],
     }
     cfg = config_json(con, "clonador", {})
     return {**padrao, **{k: v for k, v in cfg.items() if v is not None}}
@@ -1300,6 +1302,8 @@ def garantir_config(con) -> int:
             "janela_min": 90,
             "reclonar_apos_horas": 20,
             "poll_seg": 600,
+            "envio_imediato": True,
+            "pausa_clone_seg": [2, 5],
         },
         "ritmo": {
             "envios_por_dia": list(ENVIOS_POR_DIA),
