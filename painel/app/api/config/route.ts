@@ -61,6 +61,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "janela entre 10 e 720 minutos" }, { status: 400 });
   }
 
+  if (chave === "fila") {
+    if (typeof valor?.somente_clones !== "boolean")
+      return NextResponse.json({ erro: "fila: somente_clones deve ser true/false" }, { status: 400 });
+  }
+
   if (chave === "tracking") {
     if (typeof valor?.ativo !== "boolean")
       return NextResponse.json({ erro: "tracking: ativo deve ser true/false" }, { status: 400 });

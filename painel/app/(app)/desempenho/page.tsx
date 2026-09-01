@@ -71,7 +71,7 @@ export default async function Desempenho({
       [corte, ...proj.params],
     ),
     todas(
-      `SELECT marca, COUNT(*) n, ROUND(AVG(desconto_pct)) desc_medio
+      `SELECT marca, COUNT(*) n, AVG(desconto_pct) desc_medio
        FROM ofertas WHERE status_envio='ENVIADO' AND marca != '' AND enviado_em >= ?${proj.sql}
        GROUP BY marca ORDER BY n DESC LIMIT 12`,
       [corte, ...proj.params],
@@ -85,8 +85,8 @@ export default async function Desempenho({
     todas(
       `SELECT COUNT(*) total,
               COUNT(DISTINCT substr(enviado_em,1,10)) dias,
-              ROUND(AVG(desconto_pct)) desc_medio,
-              ROUND(AVG(preco_promocional),2) ticket
+              AVG(desconto_pct) desc_medio,
+              AVG(preco_promocional) ticket
        FROM ofertas WHERE status_envio='ENVIADO' AND enviado_em >= ?${proj.sql}`,
       [corte, ...proj.params],
     ),
@@ -116,7 +116,7 @@ export default async function Desempenho({
     [`Publicações (${dias}d)`, fmt(total)],
     ["Média por dia", fmt(Math.round(total / Math.max(1, Number(k.dias ?? 1))))],
     ["Vindas do monitoramento", total ? `${Math.round((doMonitoramento / total) * 100)}%` : "—"],
-    ["Desconto médio", k.desc_medio ? `${k.desc_medio}%` : "—"],
+    ["Desconto médio", k.desc_medio ? `${Math.round(Number(k.desc_medio))}%` : "—"],
     ["Preço médio publicado", k.ticket ? `R$ ${Number(k.ticket).toFixed(2)}` : "—"],
     // 0 clique é informação real; "—" só quando o recurso não existe aqui
     ["Cliques no período", cliques == null ? "—" : fmt(cliques)],
@@ -213,7 +213,7 @@ export default async function Desempenho({
                 dados={marcas.map((m) => ({
                   rotulo: String(m.marca),
                   valor: Number(m.n),
-                  extra: `· ${m.desc_medio}%`,
+                  extra: `· ${Math.round(Number(m.desc_medio))}%`,
                 }))}
               />
             </Cartao>

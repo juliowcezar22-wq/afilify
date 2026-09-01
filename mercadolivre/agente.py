@@ -86,7 +86,8 @@ def dentro_da_janela(momento: datetime, plano: dict) -> bool:
     )
 
 
-def fila_de_envio(con: sqlite3.Connection, limite: int) -> list[sqlite3.Row]:
+def fila_de_envio(con: sqlite3.Connection, limite: int,
+                  so_clones: bool = False) -> list[sqlite3.Row]:
     ordem = {
         "novas": "criado_em DESC",
         "antigas": "criado_em ASC",
@@ -95,6 +96,9 @@ def fila_de_envio(con: sqlite3.Connection, limite: int) -> list[sqlite3.Row]:
 
     condicoes = ["status_envio = 'PENDENTE'", "link_afiliado != ''",
                  "perfil = ?"]
+    # modo espelho: publica SÓ o que veio do clonador (config do painel)
+    if so_clones or config_json(con, "fila", {}).get("somente_clones"):
+        condicoes.append("origem = 'clone'")
     # tentativa que falhou fica de molho até a hora marcada
     condicoes.append("(proxima_tentativa IS NULL OR proxima_tentativa <= ?)")
     params: list = [PERFIL_ATIVO, agora().isoformat(timespec="seconds")]
@@ -150,10 +154,15 @@ def bloco3_enviar(
     limite: int = ENVIO_POR_EXECUCAO,
     seco: bool = False,
     forcar: bool = False,
+    imediato: bool = False,
 ) -> int:
+    """`imediato`: publicação de clone. O ritmo (janela e intervalos) existe
+    para a busca própria, que precisa parecer humana. O clone copia o ritmo
+    de quem já publicou — se o rival postou agora, sai agora. A cota do dia
+    continua valendo: é a última defesa contra laço de repetição."""
     momento = agora()
     plano = plano_do_dia(con, momento)
-    if not forcar and not dentro_da_janela(momento, plano):
+    if not forcar and not imediato and not dentro_da_janela(momento, plano):
         info(
             f"BLOCO 3 — fora da janela "
             f"{hora_do_dia(momento, plano['inicio']):%H:%M}–"
@@ -170,9 +179,10 @@ def bloco3_enviar(
 
     reconciliar_entregas(con)
     destino = canal_cfg(con)["grupo"]
-    fila = fila_de_envio(con, limite)
+    fila = fila_de_envio(con, limite, so_clones=imediato)
     if not fila:
-        info("BLOCO 3 — nenhuma oferta pendente com link pronto")
+        if not imediato:      # no modo imediato o silêncio é o normal
+            info("BLOCO 3 — nenhuma oferta pendente com link pronto")
         return 0
 
     if not seco and not uazapi_configurado():
@@ -196,7 +206,9 @@ def bloco3_enviar(
             info(f"pulada {linha['mlb_id']}: entrega já reservada/concluída")
             continue
 
-        pausa = random.randint(*PAUSA_HUMANIZADA)
+        faixa = (clonador_cfg(con).get("pausa_clone_seg") or [2, 5]) if imediato \
+            else PAUSA_HUMANIZADA
+        pausa = random.randint(int(faixa[0]), int(faixa[1]))
         info(f"pausa humanizada de {pausa}s")
         if not dormir(pausa):
             # chegou SIGTERM durante a pausa: sair sem disparar a mensagem,
@@ -546,6 +558,22 @@ def coletar(con, paginas) -> None:
             erro(f"shopee: {type(e).__name__}: {e}")
 
 
+# ciclo do daemon: curto porque o clone precisa sair no instante em que
+# a mensagem do rival chega pelo webhook. As demais etapas têm relógio
+# próprio (hora_de_buscar/hora_de_clonar/hora_de_enviar), então acordar
+# mais vezes só custa consultas locais baratas.
+PULSO_SEG = 5
+
+
+def antecipar_envio(con, momento) -> None:
+    """Clone quente não espera o slot sorteado: sai em 1–3 min."""
+    alvo = momento + timedelta(seconds=random.uniform(60, 180))
+    atual = ler_estado(con, "proximo_envio")
+    if not atual or atual > alvo.isoformat(timespec="seconds"):
+        gravar_estado(con, "proximo_envio", alvo.isoformat(timespec="seconds"))
+        info(f"envio antecipado para {alvo:%H:%M} (clone na fila)")
+
+
 def cmd_rodar(args) -> int:
     try:
         trava = Trava().__enter__()
@@ -579,10 +607,15 @@ def cmd_rodar(args) -> int:
         except Exception as e:  # o daemon não pode morrer por um ciclo ruim
             erro(f"ciclo inicial: {type(e).__name__}: {e}")
 
+    ultimo_pulso = None
     while not _parar:
         momento = agora()
-        # pulso de vida: o painel mostra a automação como ativa lendo isto
-        gravar_estado(con, "heartbeat", momento.isoformat(timespec="seconds"))
+        # pulso de vida: o painel mostra a automação como ativa lendo isto.
+        # O ciclo é curto (para o clone sair na hora), mas o pulso continua
+        # a cada 30s — não faz sentido escrever no banco 12x por minuto.
+        if ultimo_pulso is None or (momento - ultimo_pulso).total_seconds() >= 30:
+            gravar_estado(con, "heartbeat", momento.isoformat(timespec="seconds"))
+            ultimo_pulso = momento
         try:
             # Pedidos do painel primeiro: tem gente esperando na tela, e a
             # janela de validade deles é curta.
@@ -607,10 +640,21 @@ def cmd_rodar(args) -> int:
                 coletar(con, args.paginas)
                 bloco2_links(con)
 
-            if not _parar and clonador_cfg(con)["ativo"] and hora_de_clonar(con, momento):
+            cfg_clone = clonador_cfg(con)
+            if not _parar and cfg_clone["ativo"] and hora_de_clonar(con, momento):
                 gravar_estado(con, "ultimo_clone", momento.isoformat(timespec="seconds"))
                 if bloco4_clonar(con):
                     bloco2_links(con)
+                    if cfg_clone.get("envio_imediato", True):
+                        bloco3_enviar(con, seco=args.seco, imediato=True)
+                    else:
+                        antecipar_envio(con, momento)
+
+            # clone que ficou para trás (link demorou, reinício no meio):
+            # sai assim que estiver pronto, sem esperar o slot sorteado
+            if (not _parar and cfg_clone.get("envio_imediato", True)
+                    and fila_de_envio(con, 1, so_clones=True)):
+                bloco3_enviar(con, seco=args.seco, imediato=True)
 
             if not _parar and hora_de_enviar(con, momento):
                 agendar_proximo_envio(con, momento)
@@ -619,7 +663,7 @@ def cmd_rodar(args) -> int:
         except Exception as e:
             erro(f"ciclo: {type(e).__name__}: {e}")
 
-        dormir(30)
+        dormir(PULSO_SEG)
 
     con.close()
     trava.__exit__()

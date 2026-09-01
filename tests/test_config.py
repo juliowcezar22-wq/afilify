@@ -116,6 +116,35 @@ class Canal(unittest.TestCase):
         self.assertEqual(comum.canal_cfg(self.con)["grupo"], "999@g.us")
 
 
+class SomenteClones(unittest.TestCase):
+    def setUp(self):
+        if "afilify-test" not in comum.BANCO:
+            raise RuntimeError(f"RECUSADO: banco real ({comum.BANCO})")
+        self.con = abrir_banco()
+        self.con.execute("DELETE FROM config"); self.con.execute("DELETE FROM ofertas")
+        self.con.commit()
+        from mercadolivre.agente import fila_de_envio
+        self.fila = fila_de_envio
+        for mlb, origem in (("MLB1", "busca"), ("MLB2", "clone")):
+            comum.salvar_oferta(self.con, comum.Oferta(
+                mlb_id=mlb, nome=f"P {mlb}", url=f"https://ml.com/{mlb}",
+                preco_original=100, preco_promocional=80,
+                link_afiliado=f"https://meli.la/{mlb}"))
+            self.con.execute("UPDATE ofertas SET origem=? WHERE mlb_id=?", (origem, mlb))
+        self.con.commit()
+
+    def tearDown(self):
+        self.con.close()
+
+    def test_desligado_manda_tudo(self):
+        self.assertEqual(len(self.fila(self.con, 10)), 2)
+
+    def test_ligado_so_clone(self):
+        gravar_config(self.con, "fila", {"somente_clones": True})
+        fila = self.fila(self.con, 10)
+        self.assertEqual([f["mlb_id"] for f in fila], ["MLB2"])
+
+
 class Tracking(unittest.TestCase):
     def setUp(self):
         if "afilify-test" not in comum.BANCO:

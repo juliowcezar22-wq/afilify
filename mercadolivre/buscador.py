@@ -687,6 +687,7 @@ def baixar_busca(termo: str) -> str:
             "user-agent": UA_CHROME,
             "referer": "https://www.mercadolivre.com.br/",
             "cookie": cookie_ml(),
+            **HEADERS_NAVEGADOR,
         },
     )
 
@@ -728,6 +729,8 @@ def galeria_do_produto(url: str) -> list[str]:
 
 def foto_para_envio(linha: sqlite3.Row) -> str:
     """A imagem que vai no WhatsApp, conforme FOTO_ESTRATEGIA."""
+    if "clone_imagem" in linha.keys() and linha["clone_imagem"]:
+        return linha["clone_imagem"]      # clone literal: a foto que o rival mandou
     padrao = linha["imagem"]
     if FOTO_ESTRATEGIA != "galeria" or FOTO_INDICE_GALERIA <= 0:
         return padrao
@@ -1002,8 +1005,8 @@ def gerar_links(urls: list[str]) -> dict[str, str]:
 def bloco2_links(con: sqlite3.Connection, lote: int = 20) -> int:
     pendentes = con.execute(
         "SELECT mlb_id, url FROM ofertas "
-        "WHERE link_afiliado = '' AND status_envio != 'ENVIADO' "
-        "AND mlb_id LIKE 'MLB%'"  # Shopee chega com offerLink pronto
+        "WHERE link_afiliado = '' AND status_envio NOT IN ('ENVIADO', 'ERRO') "
+        "AND mlb_id LIKE 'MLB%'"  # Shopee chega com offerLink pronto; ERRO já desistiu
     ).fetchall()
     if not pendentes:
         return 0

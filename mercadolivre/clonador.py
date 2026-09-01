@@ -40,8 +40,8 @@ from nucleo.comum import (
     mensagens_do_grupo, uazapi_configurado,
 )
 from mercadolivre.buscador import (
-    baixar_busca, contexto_da_busca, extrair_ofertas_json, normalizar,
-    salvar_oferta,
+    RE_ID_ANUNCIO, baixar_busca, contexto_da_busca, extrair_ofertas_json,
+    filtrar_marca, limpar_url, normalizar, salvar_oferta,
 )
 
 # BLOCO 4 — MONITOR DA CONCORRÊNCIA
@@ -119,7 +119,7 @@ RE_OG_IMAGEM = re.compile(r'(?:property="og:image"|name="image") content="([^"]+
 RE_ID_FOTO = re.compile(r"D_\w*?NP_(?:2X_)?([\w\-]+?)-[A-Z]{1,2}\.(?:webp|jpg)")
 
 
-def abrir_link_rival(link: str) -> dict:
+def abrir_link_rival(link: str, preco_msg: float = 0.0) -> dict:   # preco_msg mantido por compat
     """Resolve o meli.la do rival e lê o anúncio exato pelas meta tags.
 
     O link dele cai na vitrine de afiliado (/social/...), não no produto —
@@ -147,7 +147,234 @@ def abrir_link_rival(link: str) -> dict:
     if m_i:
         m_p = RE_ID_FOTO.search(m_i.group(1))
         id_foto = m_p.group(1) if m_p else ""
-    return {"titulo": m_t.group(1).strip() if m_t else "", "id_foto": id_foto}
+    titulo = m_t.group(1).strip() if m_t else ""
+    # 1ª prova: o marcador do próprio ML. Só se ele faltar caímos em foto/slug.
+    marcado = anuncio_marcado_na_vitrine(html)
+    if marcado:
+        url_bruta, prova = limpar_url(marcado["url"]), "marcador do ML"
+    else:
+        url_bruta, prova = anuncio_bruto_na_vitrine(html, titulo, id_foto)
+    return {
+        "titulo": titulo,
+        "item_id": (marcado or {}).get("item_id", ""),
+        "product_id": (marcado or {}).get("product_id", ""),
+        "id_foto": id_foto,
+        "imagem": m_i.group(1) if m_i else "",
+        "url_bruta": url_bruta,
+        "prova": prova,
+    }
+
+
+# O primeiro link COMPLETO de anúncio no HTML da vitrine é o produto que o
+# `ref` referenciou — o "link bruto" que aparece no inspecionar. Duas formas:
+#   catálogo:  mercadolivre.com.br/<slug>/p/MLB123456
+#   avulso:    produto.mercadolivre.com.br/MLB-1234567890-<slug>
+RE_BRUTO_CATALOGO = re.compile(
+    r"https://www\.mercadolivre\.com\.br/[\w\-]+/p/MLB\d+[^\"\s']*")
+RE_BRUTO_AVULSO = re.compile(
+    r"https://produto\.mercadolivre\.com\.br/MLB-\d+[^\"\s']*")
+
+
+def _tokens_uteis(texto: str) -> set:
+    return {t for t in normalizar(texto).split() if len(t) > 2 and not t.isdigit()}
+
+
+# palavras que aparecem em QUALQUER anúncio de perfumaria — não identificam
+GENERICAS = {
+    "perfume", "desodorante", "colonia", "masculino", "feminino", "unissex",
+    "parfum", "edp", "edt", "deo", "eau", "original", "importado", "arabe",
+    "spray", "kit", "body", "splash", "para", "com", "the", "pour", "homme",
+    "femme", "100ml", "105ml", "90ml", "95ml", "80ml", "50ml", "200ml", "125ml",
+}
+
+
+def _distintivos(texto: str) -> set:
+    return _tokens_uteis(texto) - GENERICAS
+
+
+MARCA_POLYCARD = '"unique_id":"'
+
+
+def _objeto_json(texto: str, inicio: int) -> str:
+    """Objeto JSON balanceado começando em `inicio` ('{'), respeitando strings."""
+    if inicio < 0 or inicio >= len(texto) or texto[inicio] != "{":
+        return ""
+    nivel, i, dentro, escape = 0, inicio, False, False
+    while i < len(texto) and i - inicio < 400_000:
+        c = texto[i]
+        if dentro:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                dentro = False
+        elif c == '"':
+            dentro = True
+        elif c == "{":
+            nivel += 1
+        elif c == "}":
+            nivel -= 1
+            if nivel == 0:
+                return texto[inicio:i + 1]
+        i += 1
+    return ""
+
+
+def anuncio_marcado_na_vitrine(html: str) -> dict:
+    """O anúncio que o PRÓPRIO Mercado Livre marca como compartilhado.
+
+    Descoberto no laboratório (11 vitrines, 2 afiliados): o HTML da página
+    /social/ já vem com ~18 "polycards" e exatamente UM tem origem
+    diferente de todos os outros — `reco_backend=item_decorator`, contra
+    `ranker_retrieval_system_vpp_v2p` nos demais, que são recomendação.
+    Esse card é o item que o afiliado compartilhou. Validado: produto certo
+    em 10/10 e VENDEDOR certo em 3/3 (nos casos em que o rival nomeia a loja).
+
+    Não fixamos o nome 'item_decorator': procuramos o card cuja origem é
+    ÚNICA na página. Se não houver exatamente um, devolvemos vazio e o
+    fluxo cai nas provas antigas (foto/slug).
+    """
+    if not html:
+        return {}
+    cards = []
+    for m in re.finditer(re.escape(MARCA_POLYCARD), html):
+        bruto = _objeto_json(html, html.rfind("{", 0, m.start()))
+        if not bruto:
+            continue
+        try:
+            card = json.loads(bruto)
+        except Exception:                      # noqa: BLE001
+            continue
+        meta = card.get("metadata") or {}
+        if not meta.get("id"):
+            continue
+        frag = (meta.get("url_fragments") or "").replace("\\u0026", "&")
+        origem = ""
+        for par in frag.lstrip("#").split("&"):
+            if par.startswith("reco_backend="):
+                origem = par.split("=", 1)[1]
+        url = (meta.get("url") or "").replace("\\u002F", "/")
+        if url and not url.startswith("http"):
+            url = "https://" + url
+        cards.append({"origem": origem, "url": url, "item_id": meta.get("id", ""),
+                      "product_id": meta.get("product_id", "")})
+    if len(cards) < 3:
+        return {}
+    contagem = {}
+    for c in cards:
+        contagem[c["origem"]] = contagem.get(c["origem"], 0) + 1
+    unicos = [c for c in cards if contagem[c["origem"]] == 1]
+    maioria = max(contagem.values())
+    if len(unicos) != 1 or maioria < 2 or not unicos[0]["url"]:
+        return {}
+    return unicos[0]
+
+
+def anuncio_bruto_na_vitrine(html: str, titulo: str, id_foto: str = "") -> tuple[str, str]:
+    """(URL crua, prova) do anúncio referenciado na vitrine do rival.
+
+    A vitrine é a prateleira inteira dele — posição NÃO identifica o
+    produto (já saiu link de Gaby Elysees numa mensagem do Salvo).
+    Certificação por provas independentes; na dúvida, ("", motivo) e o
+    fluxo cai no plano B (busca por foto exata). Nunca chuta.
+
+    1ª prova (FOTO): o og:image da vitrine carrega o ID único da foto
+       do produto referenciado; o card que contém esse ID é o produto.
+    2ª prova (SLUG): o ML gera o slug a partir do título do anúncio —
+       casamento forte slug×og:title identifica; o preço do card não
+       pode gritar contra o preço da mensagem do rival.
+    """
+    candidatos = []
+    for rx in (RE_BRUTO_CATALOGO, RE_BRUTO_AVULSO):
+        for m in rx.finditer(html):
+            candidatos.append((m.start(), m.group(0).replace("&amp;", "&")))
+    if not candidatos:
+        return "", "vitrine sem link de anúncio"
+    candidatos.sort()
+
+    # ── 1ª prova: o candidato MAIS PRÓXIMO do ID da foto referenciada
+    # (proximidade, não "está na janela": cards vizinhos vazam na janela)
+    if id_foto:
+        ocorrencias = [m.start() for m in re.finditer(re.escape(id_foto), html)]
+        if ocorrencias:
+            dist, url_foto = min(
+                (min(abs(pos - o) for o in ocorrencias), url)
+                for pos, url in candidatos)
+            if dist <= 1500:
+                return limpar_url(url_foto), "foto"
+
+    # ── 2ª prova: slug × título (+ preço do card não pode gritar)
+    esperado = _tokens_uteis(titulo)
+    if not esperado:
+        return "", "vitrine sem og:title"
+    pontuados = []
+    for pos, url in candidatos:
+        slug = re.sub(r"https://[^/]+/", "", url.split("?")[0])
+        casou = len(esperado & _tokens_uteis(slug.replace("-", " ")))
+        pontuados.append((casou / len(esperado), -pos, pos, url))
+    pontuados.sort(reverse=True)
+    escore, _, pos, url = pontuados[0]
+    if escore < 0.5:
+        return "", f"slug não casa (melhor escore {escore:.0%})"
+    # genéricas carregam escore ("desodorante colônia 100ml" casa com tudo):
+    # o slug PRECISA conter um token distintivo do título ("clash", "asad"…)
+    marcantes = _distintivos(titulo)
+    slug_esc = _tokens_uteis(
+        re.sub(r"https://[^/]+/", "", url.split("?")[0]).replace("-", " "))
+    if marcantes and not (marcantes & slug_esc):
+        return "", "slug sem token distintivo do título"
+    # NÃO usamos preço como prova: medido no laboratório, o preço da vitrine
+    # difere do anunciado em minutos (R$97→R$112, R$546→R$492) e nos dois
+    # sentidos. Preço reprovava anúncio certo e aprovava anúncio errado.
+    return limpar_url(url), "slug"
+
+
+def baixar_midia_rival(mid: str) -> str:
+    """A foto EXATA que o rival mandou, hospedada pela uazapi ('' se falhar)."""
+    try:
+        dados = requisitar_json(
+            UAZAPI_URL + "/message/download",
+            metodo="POST",
+            corpo=json.dumps({"id": mid}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "token": UAZAPI_TOKEN},
+        )
+        return dados.get("fileURL") or ""
+    except (HttpErro, RuntimeError):
+        return ""
+
+
+def oferta_do_clone(anuncio: dict, url_bruta: str, titulo: str,
+                    imagem: str = "") -> Oferta | None:
+    """Oferta montada direto da mensagem + URL exata — sem buscar no ML."""
+    m_user = re.search(r"/up/(MLBU\d{6,15})", url_bruta, re.I)
+    if m_user:
+        mlb_id = m_user.group(1).upper()
+    else:
+        # catálogo aceita id curto: /p/MLB6093091 tem 7 dígitos e o Homme
+        # Joop! ficou 3 dias fora do grupo por causa disso. Anúncio avulso
+        # segue exigindo 8+ dígitos, senão categoria (MLB6284) viraria id.
+        m_cat = re.search(r"/p/(MLB\d{5,15})\b", url_bruta, re.I)
+        if m_cat:
+            mlb_id = m_cat.group(1).upper()
+        else:
+            m = RE_ID_ANUNCIO.search(url_bruta)
+            if not m:
+                return None
+            mlb_id = f"MLB{m.group(1)}"
+    nome = titulo or anuncio["nome"]
+    marca, _, _ = filtrar_marca("", nome)
+    de, por = anuncio.get("preco_de") or 0.0, anuncio["preco"]
+    return Oferta(
+        mlb_id=mlb_id,
+        nome=nome,
+        url=url_bruta,
+        imagem=imagem,
+        preco_original=de if de > por else 0.0,
+        preco_promocional=por,
+        desconto_pct=round((1 - por / de) * 100) if de > por else 0,
+        marca=marca,
+    )
 
 
 def consultas_do_nome(nome: str) -> list[str]:
@@ -235,18 +462,42 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
         aviso("BLOCO 4 — uazapi não configurado")
         return 0
 
-    info(f"BLOCO 4 — monitorando {len(cfg['grupos'])} grupo(s) rival(is)")
+    # só fala quando tem novidade — a cada 3min isto poluía o log e a
+    # página Logs do painel (2 linhas por varredura vazia)
     corte_ms = (agora() - timedelta(minutes=cfg['janela_min'])).timestamp() * 1000
     novas = 0
 
     for jid in cfg['grupos']:
-        chave = f"clone_visto_{jid}"
-        ja_visto = set(filter(None, ler_estado(con, chave).split(",")))
-        try:
-            mensagens = mensagens_do_grupo(jid)
-        except (HttpErro, RuntimeError) as e:
-            aviso(f"  {jid}: {e}")
-            continue
+        chave = f"clone_visto3_{jid}"   # v3: reprocessa a janela no deploy do re-clone
+        vistos_antes = [x for x in ler_estado(con, chave).split(",") if x]
+        ja_visto = set(vistos_antes)
+        # 1) o que a uazapi já entregou por webhook (caminho rápido)
+        do_webhook = mensagens_do_webhook(con, jid)
+        ids_webhook = [m["messageid"] for m in do_webhook]
+
+        # 2) rede de segurança: relê o histórico de vez em quando. Existe
+        # porque webhook não tem segunda chance — se o painel estiver
+        # reiniciando na hora do aviso, aquela oferta se perderia.
+        mensagens = list(do_webhook)
+        chave_poll = f"clone_poll_{jid}"
+        ultimo = ler_estado(con, chave_poll)
+        vencido = True
+        if ultimo:
+            try:
+                vencido = (agora() - datetime.fromisoformat(ultimo)).total_seconds() \
+                    >= cfg.get("poll_seg", 600)
+            except ValueError:
+                vencido = True
+        # SÓ por tempo: se caísse aqui toda vez que o webhook estivesse
+        # vazio, acelerar o ciclo viraria milhares de chamadas por dia
+        if vencido:
+            try:
+                mensagens += mensagens_do_grupo(jid)
+                gravar_estado(con, chave_poll, agora().isoformat(timespec="seconds"))
+            except (HttpErro, RuntimeError) as e:
+                aviso(f"  {jid}: {e}")
+                if not ids_webhook:
+                    continue
 
         vistos_agora: list[str] = []
         for m in mensagens:
@@ -262,12 +513,31 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
             if not anuncio:
                 continue
 
-            # o link dele diz o anúncio exato; o nome do grupo é só o apelido
-            meta = abrir_link_rival(anuncio["link"]) if anuncio.get("link") else {}
-            busca_por = meta.get("titulo") or anuncio["nome"]
-            oferta, como = achar_no_ml(
-                busca_por, anuncio["preco"], meta.get("id_foto", "")
-            )
+            # o link dele leva à vitrine, e a vitrine entrega o link BRUTO
+            # do anúncio exato — clona direto, sem procurar no ML
+            meta = (abrir_link_rival(anuncio["link"], anuncio["preco"])
+                    if anuncio.get("link") else {})
+            # pré-condição: o og:title tem que bater com o nome que ELE
+            # escreveu — senão o próprio ref resolveu outro produto
+            nome_msg = _tokens_uteis(anuncio["nome"])
+            og_ok = bool(nome_msg) and meta.get("titulo") and (
+                len(nome_msg & _tokens_uteis(meta["titulo"])) / len(nome_msg) >= 0.5)
+            oferta, como = None, ""
+            if meta.get("url_bruta") and og_ok:
+                oferta = oferta_do_clone(anuncio, meta["url_bruta"],
+                                         meta.get("titulo", ""), meta.get("imagem", ""))
+                como = f"anúncio bruto (prova: {meta.get('prova', '?')})"
+            if not oferta:
+                if meta.get("url_bruta") and not og_ok:
+                    info(f"  og:title não bate com a mensagem — plano B: "
+                         f"{anuncio['nome'][:36]}")
+                elif meta.get("prova"):
+                    info(f"  bruto reprovado ({meta['prova']}) — plano B: "
+                         f"{anuncio['nome'][:36]}")
+                busca_por = (meta.get("titulo") if og_ok else "") or anuncio["nome"]
+                oferta, como = achar_no_ml(
+                    busca_por, anuncio["preco"], meta.get("id_foto", "")
+                )
             if not oferta:
                 info(f"  não achei no ML: {anuncio['nome'][:44]} — {como}")
                 continue
@@ -288,11 +558,15 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
                 continue
 
             if salvar_oferta(con, oferta):
+                clone_texto = RE_CLONE_LINK.sub("{link}", texto)
+                clone_imagem = (baixar_midia_rival(mid)
+                                if "Image" in str(m.get("messageType", "")) else "")
                 con.execute(
                     "UPDATE ofertas SET origem='clone', rival_nome=?, "
-                    "rival_preco=?, rival_link=? WHERE mlb_id=?",
+                    "rival_preco=?, rival_link=?, clone_texto=?, "
+                    "clone_imagem=? WHERE mlb_id=?",
                     (anuncio["nome"], anuncio["preco"], anuncio.get("link", ""),
-                     oferta.mlb_id),
+                     clone_texto, clone_imagem, oferta.mlb_id),
                 )
                 novas += 1
                 ok(
@@ -300,11 +574,51 @@ def bloco4_clonar(con: sqlite3.Connection, seco: bool = False) -> int:
                     f"(-{oferta.desconto_pct}%)"
                 )
             else:
-                info(f"  já estava na fila: {oferta.nome[:44]}")
+                # produto já existia (a busca achou antes do rival postar).
+                # Se ainda não saiu no grupo, o clone ASSUME a oferta: vira
+                # origem='clone' com a mensagem literal — senão o modo
+                # espelho a ignoraria e o espelho ficaria mudo.
+                ex = con.execute(
+                    "SELECT status_envio, enviado_em FROM ofertas WHERE mlb_id=?",
+                    (oferta.mlb_id,)).fetchone()
+                recente = False
+                if ex and ex["status_envio"] == "ENVIADO" and ex["enviado_em"]:
+                    idade_h = (agora() - datetime.fromisoformat(
+                        ex["enviado_em"])).total_seconds() / 3600
+                    recente = idade_h < cfg.get("reclonar_apos_horas", 20)
+                if ex and (ex["status_envio"] == "PENDENTE"
+                           or (ex["status_envio"] == "ENVIADO" and not recente)):
+                    clone_texto = RE_CLONE_LINK.sub("{link}", texto)
+                    clone_imagem = (baixar_midia_rival(mid)
+                                    if "Image" in str(m.get("messageType", "")) else "")
+                    ts = agora().isoformat(timespec="seconds")
+                    con.execute(
+                        "UPDATE ofertas SET origem='clone', rival_nome=?, "
+                        "rival_preco=?, rival_link=?, clone_texto=?, "
+                        "clone_imagem=?, status_envio='PENDENTE', tentativas=0, "
+                        "proxima_tentativa=NULL, erro='', atualizado_em=? "
+                        "WHERE mlb_id=?",
+                        (anuncio["nome"], anuncio["preco"], anuncio.get("link", ""),
+                         clone_texto, clone_imagem, ts, oferta.mlb_id))
+                    # libera a trava de entrega para a republicação legítima
+                    con.execute("DELETE FROM entregas WHERE mlb_id=? AND perfil=?",
+                                (oferta.mlb_id, PERFIL_ATIVO))
+                    novas += 1
+                    ok(f"  clone assumiu: {oferta.nome[:44]}")
+                else:
+                    info(f"  rival repostou envio recente — pulado: {oferta.nome[:36]}")
 
         if not seco:
             con.commit()
-            gravar_estado(con, chave, ",".join(vistos_agora[:60]))
+            # ACUMULA o histórico de vistos. Antes isto sobrescrevia com o
+            # que apareceu no ciclo — e como o webhook traz 1 mensagem por
+            # vez, a memória era zerada; na leitura seguinte do histórico
+            # (rede de segurança) as 20 últimas voltavam a parecer novas e
+            # o grupo recebia tudo de novo, em laço de 10 em 10 minutos.
+            memoria = list(dict.fromkeys(vistos_agora + vistos_antes))[:400]
+            gravar_estado(con, chave, ",".join(memoria))
+            concluir_webhook(con, ids_webhook)
 
-    ok(f"BLOCO 4 — {novas} oferta(s) do rival na fila")
+    if novas:
+        ok(f"BLOCO 4 — {novas} oferta(s) do rival na fila")
     return novas
