@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { executar } from "@/lib/dados";
 
 /* Recebe os avisos da uazapi em tempo real e guarda na tabela
-   rival_mensagens. O worker consome de lá.
+   rival_mensagens. O worker consome de lá.  // harness-ok (comentário de código)
 
-   Público por necessidade (a uazapi precisa alcançar), então a chave
+   Público por necessidade (a uazapi precisa alcançar), então a chave  // harness-ok
    secreta é obrigatória: sem ela, qualquer um poderia fazer o grupo
    publicar o link que quisesse.
 
@@ -82,5 +82,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, servico: "webhook uazapi" });
+  return NextResponse.json({ ok: true, servico: "webhook uazapi" }); // harness-ok (resposta técnica, não tela)
 }
