@@ -1,50 +1,74 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# Afilify Constitution
+
+Princípios inegociáveis desta plataforma. Derivados do Product Brief de 2026-08-26,
+seção "O que está definido e não precisa ser reaberto". Nenhuma spec, plano ou task
+pode contrariá-los sem emenda explícita registrada aqui.
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. O usuário configura intenção, nunca infraestrutura (NÃO NEGOCIÁVEL)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+A experiência comum não contém worker, JID, Redis, Postgres, EasyPanel, uazapi, cookie,
+polling, scraper, job, retry, deploy, restart, payload, endpoint, token, slug técnico
+(`perfumes-ml`) nem hora decimal. Onde o dado técnico for necessário para diagnóstico,
+ele vive em área avançada ou administrativa explicitamente marcada.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+Para cada controle da interface valem duas perguntas obrigatórias: isso é necessidade
+real do usuário ou está aí porque o backend funciona assim? E: essa decisão é do usuário
+ou da Afilify? Variável de backend não vira campo de formulário por inércia.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. Domínio formalizado
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+Workspace → Projeto → Automação → (Fontes, Destinos, Mensagens, Ritmo). Conexão pertence
+ao Workspace e é distinta de Destino. Fonte é distinta de Destino. Oferta é conceitualmente
+distinta de Publicação: uma Oferta pode gerar várias Publicações. Nenhuma entidade do
+produto pode continuar existindo apenas como arquivo de código ou variável de ambiente.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### III. Nada de funcionalidade simulada (NÃO NEGOCIÁVEL)
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+Estado exibido deriva de dado real. É proibido mock tratado como produção, sucesso falso,
+progresso decorativo e disponibilidade fingida. Uma feature só está pronta ponta a ponta:
+criação, persistência, refresh, queda, reconexão, erro, estado vazio. Redesign visual
+sozinho não é entrega.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### IV. Execução verificável
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+O estado do trabalho vive em arquivos persistentes (TASKS, PROGRESS, DECISIONS, status de
+teste e validação), não na memória da conversa. Concluir exige critério verificável:
+build, lint, typecheck, testes, QA de browser/console/network, regressão, e nenhuma tarefa
+P0/P1 acionável em aberto. Auditoria de vocabulário faz parte dos testes.
+
+### V. Isolamento e respeito à operação viva
+
+A operação de perfumes roda em produção e não pode ser interrompida ou degradada. O
+Clonador/monitoramento é dependência congelada nesta rodada — sua lógica e seus arquivos
+não são alterados. O trabalho acontece em worktree isolada; sem merge, push, deploy ou
+alteração de `main` sem autorização explícita.
+
+## Referências e limites
+
+Afflink é benchmark de simplicidade, organização de menu, onboarding e percepção de
+automação. Não é fonte de código, identidade visual, textos, layout ou componentes. A
+Afilify tem identidade e arquitetura próprias.
+
+Registros técnicos não são feature principal do cliente: eventos relevantes aparecem
+contextualizados na tela onde importam; o log cru mora no ambiente administrativo.
+
+Credenciais de conexão são cifradas em repouso, nunca reexibidas, nunca registradas em log,
+e nunca acessíveis entre workspaces.
+
+## Fluxo de trabalho
+
+Auditar → Spec → Clarify → decisões do dono do produto → Spec atualizada → Plan → Tasks →
+Harness → Implementação → QA humano final. Implementação não começa antes do Clarify
+concluído. Depois do Clarify fechado, a execução avança com mínima intervenção humana até
+a Definition of Done — sem pedir autorização tarefa a tarefa e sem declarar conclusão
+porque a interface ficou bonita.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Esta constitution prevalece sobre qualquer outra prática do repositório. Emendas exigem
+registro datado nesta página com motivo. Decisões de produto tomadas durante o Clarify são
+registradas em `specs/*/decisions.md` e não são reabertas sem novo fato.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-08-26 | **Last Amended**: 2026-08-26

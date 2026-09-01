@@ -1,53 +1,59 @@
-import Link from "next/link";
+import { contextoProjeto } from "@/lib/contexto";
+import { NavLinks } from "@/components/shell/nav-links";
+import { SeletorProjeto } from "@/components/shell/seletor-projeto";
+import { DrawerMobile } from "@/components/shell/drawer-mobile";
+import { Icone } from "@/components/ui/icone";
 
-/* Menu do blueprint (§31). Itens sem página ainda ficam visíveis e
-   desabilitados — o mapa do produto aparece desde o dia 1. */
-const MENU: Array<[string, string, boolean]> = [
-  ["Dashboard", "/", true],
-  ["Ofertas", "/ofertas", true],
-  ["Fila de publicação", "/fila", true],
-  ["Grupos & canais", "/canais", true],
-  ["Copiador", "/copiador", true],
-  ["Templates", "/templates", true],
-  ["Conexões", "/conexoes", true],
-  ["Analytics", "/analytics", true],
-  ["Logs", "/logs", true],
-  ["Configurações", "/config", true],
-];
+/**
+ * App Shell: sidebar fixa com scroll próprio + conteúdo rolando em <main>.
+ * A navegação permanece acessível em qualquer altura de página — correção
+ * estrutural do bug "sidebar desaparece no scroll" (blueprint Parte 5).
+ */
+export default async function LayoutApp({ children }: { children: React.ReactNode }) {
+  const { projetos, ativo } = await contextoProjeto();
 
-export default function LayoutApp({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh">
-      <aside className="w-60 shrink-0 border-r border-linha bg-carta px-4 py-6 hidden md:flex md:flex-col">
-        <div className="mb-8 px-2">
-          <span className="text-lg font-semibold tracking-tight">
+    <div className="flex h-dvh overflow-hidden">
+      {/* Sidebar desktop */}
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-linha bg-carta md:flex">
+        <div className="px-4 pb-2 pt-6">
+          <span className="px-2 text-lg font-semibold tracking-tight">
             afilify<span className="text-acento">.</span>
           </span>
-          <p className="mt-1 text-[11px] leading-tight text-tinta2">
-            operações de ofertas
-          </p>
         </div>
-        <nav className="flex flex-col gap-1 text-sm">
-          {MENU.map(([rotulo, href, ativo]) =>
-            ativo ? (
-              <Link key={href} href={href}
-                className="rounded-md px-3 py-2 text-tinta hover:bg-carta2">
-                {rotulo}
-              </Link>
-            ) : (
-              <span key={href}
-                className="cursor-not-allowed rounded-md px-3 py-2 text-tinta2/60"
-                title="em breve">
-                {rotulo}
-              </span>
-            ),
-          )}
-        </nav>
-        <form action="/api/sair" method="post" className="mt-auto px-2 pt-6">
-          <button className="text-xs text-tinta2 hover:text-tinta">sair</button>
+        <div className="px-4 pb-4 pt-3">
+          <SeletorProjeto projetos={projetos} ativo={ativo?.slug ?? ""} />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+          <NavLinks />
+        </div>
+        <form action="/api/sair" method="post" className="border-t border-linha px-4 py-3">
+          <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-tinta2 hover:bg-carta2 hover:text-tinta">
+            <Icone nome="sair" tamanho={16} />
+            Sair
+          </button>
         </form>
       </aside>
-      <main className="min-w-0 flex-1 px-6 py-8 md:px-10">{children}</main>
+
+      {/* Coluna de conteúdo */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Barra superior mobile */}
+        <header className="flex items-center gap-2 border-b border-linha bg-carta px-3 py-2 md:hidden">
+          <DrawerMobile projetos={projetos} projetoAtivo={ativo?.slug ?? ""} />
+          <span className="text-base font-semibold tracking-tight">
+            afilify<span className="text-acento">.</span>
+          </span>
+          {ativo && (
+            <span className="ml-auto truncate rounded-full bg-carta2 px-2.5 py-1 text-xs text-tinta2">
+              {ativo.nome}
+            </span>
+          )}
+        </header>
+
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

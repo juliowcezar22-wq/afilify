@@ -47,6 +47,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from nucleo.comum import *  # noqa: F401,F403
+from nucleo import comandos, teste_busca
+from nucleo.conexoes import mercadolivre as conexao_ml
 from mercadolivre.config import *  # noqa: F401,F403
 from nucleo.comum import AZUL, CINZA, FIM, VERDE, VERMELHO, AMARELO
 from mercadolivre.buscador import (
@@ -330,7 +332,9 @@ def plano_do_dia(con: sqlite3.Connection, momento: datetime) -> dict:
 # Trava POR PERFIL: dois grupos são duas operações independentes — o daemon
 # de casa não pode ser barrado pelo de perfumes. O que continua proibido é
 # dois processos do MESMO perfil (mesmo grupo de WhatsApp).
-ARQUIVO_TRAVA = os.path.join(DADOS, f".lock-{PERFIL_ATIVO}")
+# Trava por AUTOMAÇÃO: duas automações do mesmo projeto rodam lado a lado,
+# mas a mesma automação nunca em dois processos.
+ARQUIVO_TRAVA = os.path.join(DADOS, f".lock-{CHAVE_EXECUCAO}")
 
 
 class Trava:
@@ -606,15 +610,29 @@ def cmd_rodar(args) -> int:
     ultimo_pulso = None
     while not _parar:
         momento = agora()
-        # pulso de vida: o dashboard mostra "Worker ● Online" lendo isto.
+        # pulso de vida: o painel mostra a automação como ativa lendo isto.
         # O ciclo é curto (para o clone sair na hora), mas o pulso continua
         # a cada 30s — não faz sentido escrever no banco 12x por minuto.
         if ultimo_pulso is None or (momento - ultimo_pulso).total_seconds() >= 30:
             gravar_estado(con, "heartbeat", momento.isoformat(timespec="seconds"))
             ultimo_pulso = momento
         try:
+            # Pedidos do painel primeiro: tem gente esperando na tela, e a
+            # janela de validade deles é curta.
+            atendidos = comandos.atender(con, EXECUTORES)
+            if atendidos:
+                info(f"{atendidos} pedido(s) do painel atendido(s)")
+
             if hora_de_buscar(con, momento):
                 gravar_estado(con, "ultima_busca", momento.isoformat(timespec="seconds"))
+                # A fonte configurada na tela manda no que procurar.
+                if CONTEXTO.criterios_busca:
+                    from mercadolivre import buscador as _b
+                    from nucleo import fonte_busca as _fb
+                    try:
+                        _b.usar_criterios(_fb.normalizar(CONTEXTO.criterios_busca))
+                    except _fb.CriteriosInvalidos as e:
+                        aviso(f"fonte com configuração inválida ({e}) — usando o padrão do nicho")
                 n = purgar_vencidas(con)
                 con.commit()
                 if n:
@@ -1181,6 +1199,15 @@ def cmd_limpar(args) -> int:
         f"{vencidas} pendente(s) vencida(s) (+{VALIDADE_HORAS}h) · restam {restam}"
     )
     return 0
+
+
+# O que o painel pode pedir ao motor. Cada entrada é um pedido que existe
+# porque a tela não consegue fazer sozinha — não um atalho para chamar
+# qualquer coisa daqui de dentro.
+EXECUTORES = {
+    "testar_busca": lambda con, params: teste_busca.executar(con, params),
+    "validar_conexao_ml": lambda con, params: conexao_ml.validar(con, params),
+}
 
 
 def main() -> int:

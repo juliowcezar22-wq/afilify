@@ -1,9 +1,14 @@
 # Afilify
 
-Plataforma de operação de ofertas com link de afiliado: agentes que
-encontram promoções (Mercado Livre + Shopee), geram o link, publicam em
-grupos de WhatsApp com ritmo humano — e um painel web que controla tudo
-sem mexer em arquivo nem reiniciar nada.
+Plataforma de operação de ofertas com link de afiliado: encontra promoções
+(Mercado Livre + Shopee), gera o link, publica em grupos de WhatsApp com
+ritmo humano — e um painel web onde tudo é criado e operado sem tocar em
+código.
+
+**Projeto, automação, fonte, destino e conexão são DADOS**, criados pela
+interface. Conectar um WhatsApp é escanear um QR na tela; configurar o que
+procurar são quatro campos e um botão "Testar busca" que mostra o que aquela
+configuração traria de verdade.
 
 Motor em **Python 3.9 puro** (zero pip no modo SQLite). Painel em
 **Next.js**. Um único banco compartilhado pelos dois.
@@ -25,11 +30,20 @@ mercadolivre/           buscador (vitrine + busca logada), gerador de
 shopee/                 Open API oficial (GraphQL assinado); o daemon
                         coleta daqui quando o perfil lista "shopee"
 
-nichos/                 o QUE publicar  (perfumes.py, casa.py)
-perfis/                 nicho + marketplaces + grupo + ritmo = um projeto
-                        (perfumes_ml.py, casa_ml_shopee.py)
+nucleo/contexto.py      QUEM o motor está operando: automação do banco
+                        (AUTOMACAO_ID) ou arquivo de perfil (PERFIL)
+nucleo/conexoes/        contas externas (whatsapp.py, mercadolivre.py)
+nucleo/comandos.py      pedidos do painel ao motor (testar busca etc.)
+nucleo/publicacao.py    uma oferta saindo em um destino
+nucleo/protecao.py      teto de segurança por número conectado
+nucleo/oferta.py        ciclo de vida da oferta, incluindo retenção
 
-painel/                 Next.js — 10 páginas, lê o MESMO banco do motor
+nichos/                 o QUE é oferta boa (perfumes.py, casa.py) — vira
+                        "tipo de nicho" escolhido ao criar o projeto
+perfis/                 modo antigo: nicho + marketplaces + grupo + ritmo
+                        em arquivo (perfumes_ml.py, casa_ml_shopee.py)
+
+painel/                 Next.js — painel do produto, lê o MESMO banco do motor
 db/                     migrações Postgres 0001..0005 + importador de cutover
 deploy/                 compose, Dockerfiles, Caddy, backup, systemd
 tests/                  84 testes (rodam em banco temporário, sempre)
@@ -52,7 +66,7 @@ cd painel && pnpm build && pnpm start -p 3001
 ```
 
 Um perfil roda quando `ATIVO=True` **e** tem destino: `GRUPO_WHATSAPP`
-no arquivo *ou* grupo escolhido na página **/canais** do painel — é
+no arquivo *ou* grupo escolhido na página **/destinos** do painel — é
 assim que o grupo de casa liga sem tocar em código.
 
 ## Painel ↔ motor: config dinâmica
@@ -63,11 +77,11 @@ vigentes, nunca sobrescrevendo edição):
 
 | chave      | página do painel | o que controla |
 |------------|------------------|----------------|
-| `mensagem`  | Templates       | modelo da mensagem + rodapé |
-| `headlines` | Templates       | pools de abertura rotativos |
-| `ritmo`     | Configurações   | cota/dia, janela, coletas, validade, proporção |
-| `clonador`  | Copiador        | ligado, grupos rivais monitorados |
-| `canal`     | Grupos & canais | grupo de destino da publicação |
+| `mensagem`  | Mensagens       | modelo da mensagem + rodapé |
+| `headlines` | Mensagens       | pools de abertura rotativos |
+| `ritmo`     | Ritmo & Regras  | cota/dia, janela, coletas, validade, proporção |
+| `clonador`  | Fontes          | ligado, grupos rivais monitorados |
+| `canal`     | Destinos        | grupo de destino da publicação |
 | `tracking`  | Configurações   | cliques via `/r/{código}` (desligado por padrão) |
 
 Cota e janela novas valem a partir do plano de **amanhã** (o plano do
@@ -117,3 +131,56 @@ depois).
 | domínio (afilify.com.br) | tracking em produção |
 | VPS | motor 24/7 fora do Mac |
 | JID do grupo casa | 2º projeto no ar (escolher em /canais) |
+
+
+## Como a plataforma se organiza
+
+```
+Workspace ──┬── Conexão      (WhatsApp, Mercado Livre, Shopee)
+            └── Projeto      ("Perfumes" — traz o tipo de nicho)
+                  └── Automação   ("Ofertas Mercado Livre")
+                        ├── Fonte    o que procurar, e onde
+                        ├── Destino  para onde publicar (vários)
+                        ├── Mensagem como a publicação fica
+                        └── Ritmo    volume, janela, validade
+```
+
+Oferta é o que foi encontrado. Publicação é cada envio dela em um destino —
+por isso a mesma oferta pode sair em dois grupos, e voltar quando o preço
+cai, sem virar mensagem repetida.
+
+## Configurar uma fonte de busca
+
+Quatro campos, e só: palavras-chave, onde buscar (resultados e/ou página de
+ofertas), desconto mínimo e faixa de preço. Exclusões ficam em Avançado.
+
+Páginas, pausas, tentativas, categoria e cabeçalhos **não** são configuração
+— são decisões da plataforma. A API recusa esses campos, não apenas a tela.
+
+**Testar busca** roda o mesmo caminho da coleta real, só que menor, e mostra
+a contagem de compatíveis com exemplos. Quando volta vazio, diz qual critério
+provavelmente está apertando demais.
+
+## Segurança das contas
+
+Credenciais (token da instância de WhatsApp, sessão do Mercado Livre) são
+cifradas em repouso com AES-256-GCM, chave mestra em `AFILIFY_CHAVE_MESTRA`.
+O identificador da conexão entra como dado autenticado — credencial de uma
+conexão não abre em outra.
+
+O volume de envio tem teto por **número conectado**, não por automação: duas
+automações no mesmo número somam um volume que nenhuma delas tem sozinha.
+Isso é decisão da plataforma e não aparece como campo.
+
+## Verificação
+
+```bash
+scripts/harness/fase.sh              # situação das fases
+scripts/harness/ciclo.sh             # fecha fase concluída e aponta a próxima
+scripts/harness/verify-nucleo.sh     # lint, typecheck, testes, build, linguagem,
+                                     # anti-mock, congelados, QA de navegador
+scripts/harness/guarda-banco.sh      # recusa apontar para o banco de produção
+```
+
+A especificação completa, com decisões e evidências de validação, está em
+`specs/001-afilify-saas-core/`.

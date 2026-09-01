@@ -1,18 +1,52 @@
 @import "tailwindcss";
 
-/* Paleta Afilify — direção visual definida pelo produto (dark SaaS) */
+/* Paleta Afilify — dark SaaS com acento verde usado com parcimônia.
+   Tokens são a única fonte de cor do painel (nada de hex nas páginas). */
 @theme {
-  --color-fundo: #090B0F;
-  --color-carta: #11151B;
-  --color-carta2: #171C24;
-  --color-tinta: #F5F7FA;
-  --color-tinta2: #8B95A5;
-  --color-acento: #B8FF3D;
-  --color-linha: #1E2530;
-  --color-ok: #4ADE80;
-  --color-erro: #F87171;
-  --color-alerta: #FBBF24;
+  /* superfícies */
+  --color-fundo: #090b0f; /* fundo da aplicação */
+  --color-carta: #11151b; /* superfície primária (cards, sidebar) */
+  --color-carta2: #171c24; /* superfície elevada (inputs, hover) */
+  --color-carta3: #1d232d; /* hover de superfície elevada */
+  --color-linha: #1e2530; /* bordas */
+  --color-linha2: #2a3342; /* bordas em foco/hover */
+
+  /* texto */
+  --color-tinta: #f5f7fa; /* texto principal */
+  --color-tinta2: #949eae; /* texto secundário (AA sobre carta) */
+  --color-tinta3: #7a8699; /* texto terciário — ainda ≥4.5:1 sobre carta */
+
+  /* marca e estados */
+  --color-acento: #b8ff3d; /* verde da marca — CTAs e destaques raros */
+  --color-acento2: #a3e836; /* hover do acento */
+  --color-ok: #4ade80;
+  --color-erro: #f87171;
+  --color-alerta: #fbbf24;
+  --color-info: #60a5fa;
+
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
 }
 
-html { color-scheme: dark; }
-body { background: var(--color-fundo); color: var(--color-tinta); }
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-fundo);
+  color: var(--color-tinta);
+}
+
+/* Foco visível universal — anel consistente em qualquer controle.
+   Sem border-radius aqui: regra fora de @layer venceria os rounded-* dos
+   utilitários e deformaria pills/botões ao focar. */
+:focus-visible {
+  outline: 2px solid var(--color-acento);
+  outline-offset: 2px;
+}
+
+/* Scrollbar discreta nas áreas com rolagem própria */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-linha2) transparent;
+}

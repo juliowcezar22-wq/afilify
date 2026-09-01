@@ -1,3 +1,4 @@
 # Necessário SOMENTE com STORAGE=postgres.
 # O modo padrão (sqlite) roda 100% em stdlib, sem pip install.
 psycopg[binary]>=3.1
+cryptography>=42  # cifra de credenciais em repouso (nucleo/cripto.py)
