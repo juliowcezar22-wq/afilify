@@ -73,3 +73,19 @@ class PostgresAoVivo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LinhaCompativelComSqlite(unittest.TestCase):
+    """sqlite3.Row aceita nome e posição; o adaptador precisa aceitar também."""
+
+    def test_acesso_por_nome_e_por_posicao(self):
+        from nucleo.storage import LinhaCompat
+        linha = LinhaCompat([("id", "abc"), ("nome", "Perfume X")])
+        self.assertEqual(linha["id"], "abc")
+        self.assertEqual(linha[0], "abc")
+        self.assertEqual(linha[1], "Perfume X")
+
+    def test_chave_inexistente_ainda_falha(self):
+        from nucleo.storage import LinhaCompat
+        with self.assertRaises(KeyError):
+            LinhaCompat([("id", "abc")])["nao_existe"]

@@ -42,8 +42,19 @@ class _CursorVazio:
 
 
 class LinhaCompat(dict):
-    """Linha do Postgres com a mesma cara do sqlite3.Row (acesso por nome)."""
+    """Linha do Postgres com a mesma cara do sqlite3.Row.
+
+    O sqlite3.Row aceita nome E posição (`linha["id"]` e `linha[0]`). Sem
+    a posição, código que roda no SQLite quebra no Postgres com um
+    KeyError obscuro — foi o que derrubou a migração da operação na
+    primeira tentativa contra o banco real.
+    """
     __slots__ = ()
+
+    def __getitem__(self, chave):
+        if isinstance(chave, int):
+            return list(self.values())[chave]
+        return super().__getitem__(chave)
 
 
 def _fabrica_linha(cursor):
