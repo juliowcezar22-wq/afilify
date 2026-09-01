@@ -27,9 +27,11 @@ sys.path.insert(0, RAIZ)
 os.environ.setdefault(
     "ML_BANCO", os.path.join(tempfile.mkdtemp(prefix="afilify-test-"), "ctx.db"))
 
-from nucleo import contexto, perfil  # noqa: E402
+from nucleo import comum, contexto, perfil  # noqa: E402
 
-AGORA = "2026-08-27T10:00:00-03:00"
+# Relativo ao relógio: data cravada envelhece e o teste passa a falhar
+# sozinho dias depois, sem nada ter mudado no código.
+AGORA = comum.agora().isoformat(timespec="seconds")
 
 
 class DoPerfil(unittest.TestCase):

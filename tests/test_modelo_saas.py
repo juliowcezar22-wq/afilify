@@ -20,7 +20,9 @@ os.environ.setdefault(
 
 from nucleo import comum  # noqa: E402
 
-AGORA = "2026-08-27T10:00:00-03:00"
+# Relativo ao relógio: data cravada envelhece e o teste passa a falhar
+# sozinho dias depois, sem nada ter mudado no código.
+AGORA = comum.agora().isoformat(timespec="seconds")
 
 
 def novo_id() -> str:

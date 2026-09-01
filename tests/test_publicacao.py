@@ -23,7 +23,9 @@ os.environ.setdefault(
 
 from nucleo import comum, contexto, protecao, publicacao  # noqa: E402
 
-AGORA_ISO = "2026-08-27T14:00:00-03:00"
+# Relativo ao relógio, nunca fixo: uma data cravada aqui envelhece e o teste
+# começa a falhar sozinho dias depois, sem nada ter mudado no código.
+AGORA_ISO = comum.agora().isoformat(timespec="seconds")
 
 
 class Base(unittest.TestCase):
